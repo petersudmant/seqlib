@@ -1,6 +1,12 @@
-from gtf_to_genes import *
+
 import argparse
 
 
 if __name__=="__main__":
-    a
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--fn_fasta")
+    parser.add_argument("--fn_gff")
+    (o, args) = parse.parse_args()
+
+
+
