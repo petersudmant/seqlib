@@ -98,7 +98,7 @@ def fetch_trascripts(GFF_parser, limit_info={}):
     NOT IMPLEMENTED
     limit_info={"gff_id": ["13"]}
     """
-
+    exit(1)
     GFF_parser = GFF.GFFParser()
     for rec in GFF_parser.parse_in_parts(open(o.fn_gff), limit_info=limit_info):
     #iterate over chromosomes

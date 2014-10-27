@@ -27,5 +27,6 @@ if __name__=="__main__":
     for contig, splice_graph in splice_graphs_by_contig.iteritems():
         seq = fa.get_sequence(contig)
         splice_graph.enumerate_splice_junctions(seq)
+        splice_graph.get_NAGNAGs()
     
 

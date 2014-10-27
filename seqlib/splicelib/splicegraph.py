@@ -14,8 +14,8 @@ def revcomp(s):
 
 class SpliceGraph(object):
 
-    def __init__(self, contig, F_3p_5p_ss, F_5p_3p_ss, R_3p_5p_ss, R_5p_3p_ss):
-        
+    def __init__(self, contig, **kwargs):
+            
         """
           5'      3'
         + GT------AG
@@ -26,12 +26,39 @@ class SpliceGraph(object):
         
         self.contig = contig
 
-        self.F_3p_5p_ss = F_3p_5p_ss 
-        self.F_5p_3p_ss = F_5p_3p_ss 
+        self.F_3p_5p_ss = kwargs["F_3p_5p_ss"]
+        self.F_5p_3p_ss = kwargs["F_5p_3p_ss"]
+        self.R_3p_5p_ss = kwargs["R_3p_5p_ss"]
+        self.R_5p_3p_ss = kwargs["R_5p_3p_ss"]
         
-        self.R_3p_5p_ss = R_3p_5p_ss
-        self.R_5p_3p_ss = R_5p_3p_ss
-    
+        self.F_exon_3p_5p = kwargs["F_exon_3p_5p"]
+        self.F_exon_5p_3p = kwargs["F_exon_5p_3p"]
+        self.R_exon_3p_5p = kwargs["R_exon_3p_5p"]
+        self.R_exon_5p_3p = kwargs["R_exon_5p_3p"]
+
+    def get_NAGNAGs(self, n=33):
+        """
+        define NAGNAG
+        SD SA1,SA2 where SA1 and SA2 are within n bp of each other
+        """
+        
+        #FWD
+        for ss_5p, ss_3p_list in self.F_5p_3p_ss.iteritems():
+            ss_3ps = np.sort(np.array(ss_3p_list))
+            d = np.diff(ss_3ps)
+            for w in np.where(d<=n)[0]:
+                print "F:", self.contig, ss_5p, ss_3ps[w], ss_3ps[w+1], d[w]
+        
+        #REV
+        for ss_5p, ss_3p_list in self.R_5p_3p_ss.iteritems():
+            ss_3ps = np.sort(np.array(ss_3p_list))
+            d = np.diff(ss_3ps)
+            for w in np.where(d<=n)[0]:
+                print "R:", self.contig, ss_3ps[w], ss_3ps[w+1], ss_5p, d[w]
+            
+
+
+
     def enumerate_splice_junctions(self, seq):
         fwd_5p = defaultdict(int)
         fwd_3p = defaultdict(int)
@@ -92,8 +119,14 @@ def init_splice_graphs_from_gff(fn_gff, contigs = [], features = ["transcript", 
                 else:
                     t.get_splice_junctions(R_3p_5p_ss, R_5p_3p_ss, R_exon_3p_5p, R_exon_5p_3p)
         
-        SGs_by_contig[contig] = SpliceGraph(contig, F_3p_5p_ss, F_5p_3p_ss, R_3p_5p_ss, R_5p_3p_ss)
-                
+        SGs_by_contig[contig] = SpliceGraph(contig, F_3p_5p_ss = F_3p_5p_ss, 
+                                                    F_5p_3p_ss = F_5p_3p_ss, 
+                                                    R_3p_5p_ss = R_3p_5p_ss, 
+                                                    R_5p_3p_ss = R_5p_3p_ss, 
+                                                    F_exon_3p_5p = F_exon_3p_5p,
+                                                    F_exon_5p_3p = F_exon_5p_3p,
+                                                    R_exon_3p_5p = R_exon_3p_5p,
+                                                    R_exon_5p_3p = R_exon_5p_3p)
     return SGs_by_contig
     
 #for rec in GFF_parser.parse_in_parts(open(o.fn_gff), limit_info=limit_info):
