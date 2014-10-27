@@ -21,11 +21,11 @@ if __name__=="__main__":
     
     contigs = [contig for contig in fa.names]
     contigs = ["13"]
-    contigs = ["GL000213.1"]
+    #contigs = ["GL000213.1"]
     splice_graphs_by_contig = sg.init_splice_graphs_from_gff(o.fn_gff, contigs)
 
     for contig, splice_graph in splice_graphs_by_contig.iteritems():
         seq = fa.get_sequence(contig)
-        splice_graph.print_splice_junctions()
+        splice_graph.enumerate_splice_junctions(seq)
     
 
