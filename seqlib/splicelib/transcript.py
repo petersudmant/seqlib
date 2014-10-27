@@ -50,12 +50,12 @@ class Transcript:
             assert e1_s < e1_e and e2_s < e2_e
                 
             if self.strand == 1:
-                _5p_to_3p[e1_e] = e2_s
+                _5p_to_3p[e1_e].append(e2_s)
                 _3p_to_5p[e1_s].append(e1_e)
                 _3p_to_5p[e2_s].append(e2_e)
                 #ret.append(tuple([seq[e1_e:e1_e+2],seq[e2_s-2:e2_s]]))
             else:
-                _5p_to_3p[e2_s] = e1_e
+                _5p_to_3p[e2_s].append(e1_e)
                 _3p_to_5p[e2_e].append(e2_s)
                 _3p_to_5p[e1_e].append(e1_s)
                 #ret.append(tuple([revcomp(seq[e2_s-2:e2_s]), revcomp(seq[e1_e:e1_e+2])])) 
