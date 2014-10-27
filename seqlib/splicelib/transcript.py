@@ -31,18 +31,18 @@ class Transcript:
                 alts = np.array([m.start() for m in re.finditer("CT",seq[e1_e:e2_s])])
             return alts 
     
-    def get_splice_junctions(self, _5p_to_3p, _3p_to_5p):
+    def get_splice_junctions(self, _3p_to_5p, _5p_to_3p, _exon_3p_to_5p, _exon_5p_to_3p):
         """
         side effect - modifies passed in dicts
         5p_to_3p and 3p_to_5p are strand specific defaultdicts
                           ___
-         ---->     3'  5'/   \ 3' 5'
+         ---->         5'/   \ 3' 
          |         -----/     \-----
                    ___
-            5'  3'/   \ 5' 3'   <----
-            -----/     \-----       |
+                3'/   \ 5'      <----
+            -----/     \-----        |
         """
-        
+       
         for i in xrange(len(self.exons)-1):
 
             e1_s, e1_e = self.exons[i]
@@ -50,16 +50,30 @@ class Transcript:
             assert e1_s < e1_e and e2_s < e2_e
                 
             if self.strand == 1:
-                _5p_to_3p[e1_e].append(e2_s)
-                _3p_to_5p[e1_s].append(e1_e)
-                _3p_to_5p[e2_s].append(e2_e)
+                if not e2_s in _5p_to_3p[e1_e]:
+                    _5p_to_3p[e1_e].append(e2_s)
+                    _3p_to_5p[e2_s].append(e1_e)
+                if not e1_e in _exon_5p_to_3p[e1_s]:
+                    _exon_5p_to_3p[e1_s].append(e1_e)
+                    _exon_3p_to_5p[e1_e].append(e1_s)
                 #ret.append(tuple([seq[e1_e:e1_e+2],seq[e2_s-2:e2_s]]))
             else:
-                _5p_to_3p[e2_s].append(e1_e)
-                _3p_to_5p[e2_e].append(e2_s)
-                _3p_to_5p[e1_e].append(e1_s)
+                if not e1_e in _5p_to_3p[e2_s]:
+                    _5p_to_3p[e2_s].append(e1_e)
+                    _3p_to_5p[e1_e].append(e2_s)
+                if not e1_s in _exon_5p_to_3p[e1_e]:
+                    _exon_5p_to_3p[e1_e].append(e1_s)
+                    _exon_3p_to_5p[e1_s].append(e1_e)
+
                 #ret.append(tuple([revcomp(seq[e2_s-2:e2_s]), revcomp(seq[e1_e:e1_e+2])])) 
-            
+        e1_s, e1_e = self.exons[-1]
+        if self.strand == 1:
+            _exon_5p_to_3p[e1_s].append(e1_e)
+            _exon_3p_to_5p[e1_e].append(e1_s)
+        else:
+            _exon_5p_to_3p[e1_e].append(e1_s)
+            _exon_3p_to_5p[e1_s].append(e1_e)
+        
     @classmethod
     def init_from_feature(cls, feature):
         """

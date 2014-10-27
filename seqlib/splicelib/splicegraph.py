@@ -1,3 +1,4 @@
+import numpy as np
 import pdb
 import argparse
 import BCBio.GFF as GFF
@@ -38,24 +39,24 @@ class SpliceGraph(object):
         rev_3p = defaultdict(int)
 
         for F_5p, F_3p_list in self.F_5p_3p_ss.iteritems():
-            #print seq[F_5p:F_5p+2] 
-            fwd_5p[seq[F_5p:F_5p+2]]+=1
             for F_3p in F_3p_list: 
-                #print "\t", seq[F_3p-2:F_3p]
                 fwd_3p[seq[F_3p-2:F_3p]]+=1
+        for F_3p, F_5p_list in self.F_3p_5p_ss.iteritems():
+            for F_5p in F_5p_list: 
+                fwd_5p[seq[F_5p:F_5p+2]]+=1
         for R_5p, R_3p_list in self.R_5p_3p_ss.iteritems():
-            #print revcomp(seq[R_5p-2:R_5p]) 
-            rev_5p[revcomp(seq[R_5p-2:R_5p])]+=1 
             for R_3p in R_3p_list: 
-                #print "\t", revcomp(seq[R_3p:R_3p+2])
                 rev_3p[revcomp(seq[R_3p:R_3p+2])]+=1
+        for R_3p, R_5p_list in self.R_3p_5p_ss.iteritems():
+            for R_5p in R_5p_list: 
+                rev_5p[revcomp(seq[R_5p-2:R_5p])]+=1 
         
         print "fwd"
-        print fwd_5p
-        print fwd_3p
+        print fwd_5p, np.sum(fwd_5p.values())
+        print fwd_3p, np.sum(fwd_3p.values())
         print "rev"
-        print rev_5p
-        print rev_3p
+        print rev_5p, np.sum(rev_5p.values())
+        print rev_3p, np.sum(rev_3p.values())
 
 def init_splice_graphs_from_gff(fn_gff, contigs = [], features = ["transcript", "mRNA"]):
     """
@@ -77,14 +78,19 @@ def init_splice_graphs_from_gff(fn_gff, contigs = [], features = ["transcript", 
         R_3p_5p_ss = defaultdict(list)
         R_5p_3p_ss = defaultdict(list)
 
+        F_exon_5p_3p = defaultdict(list) 
+        F_exon_3p_5p = defaultdict(list)
+        R_exon_5p_3p = defaultdict(list)
+        R_exon_3p_5p = defaultdict(list)
+
         for feature in rec.features:
             if feature.type in features:
                 t = Transcript.init_from_feature(feature)
                 #alt_ss = t.get_all_3pSS(contig_seq)
                 if t.strand == 1:
-                    t.get_splice_junctions(F_3p_5p_ss, F_5p_3p_ss)
+                    t.get_splice_junctions(F_3p_5p_ss, F_5p_3p_ss, F_exon_3p_5p, F_exon_5p_3p)
                 else:
-                    t.get_splice_junctions(R_3p_5p_ss, R_5p_3p_ss)
+                    t.get_splice_junctions(R_3p_5p_ss, R_5p_3p_ss, R_exon_3p_5p, R_exon_5p_3p)
         
         SGs_by_contig[contig] = SpliceGraph(contig, F_3p_5p_ss, F_5p_3p_ss, R_3p_5p_ss, R_5p_3p_ss)
                 

@@ -20,7 +20,7 @@ if __name__=="__main__":
     fa = FastaHack(o.fn_fasta)
     
     contigs = [contig for contig in fa.names]
-    contigs = ["13"]
+    contigs = ["19"]
     #contigs = ["GL000213.1"]
     splice_graphs_by_contig = sg.init_splice_graphs_from_gff(o.fn_gff, contigs)
 
