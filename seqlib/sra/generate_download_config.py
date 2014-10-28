@@ -12,9 +12,10 @@ if __name__=="__main__":
     xml_dict = xmltodict.parse(xml)
 
     cwd = os.getcwd()
-    STUDY=cwd.split("/")[-1].split("_")[0] 
+    STUDY_ACC=cwd.split("/")[-1].split("_")[0] 
 
-    j_out = {"STUDY":STUDY}
+    j_out = {"study_accession":STUDY_ACC}
+    j_out = {"symlink_pattern":["accession","disease state","tissue"]}
     j_out["samples"] = {}
 
     for d in xml_dict["EXPERIMENT_PACKAGE_SET"]["EXPERIMENT_PACKAGE"]:
@@ -22,7 +23,7 @@ if __name__=="__main__":
         [u'EXPERIMENT', u'SUBMISSION', u'STUDY', u'SAMPLE', u'RUN_SET']
         """
         STUDY_accession = d["STUDY"]["@accession"]
-        assert STUDY_accession==STUDY
+        assert STUDY_accession==STUDY_ACC
 
         sample_accession = d["SAMPLE"]["@accession"]
         sample_alias = d["SAMPLE"]["@alias"]
