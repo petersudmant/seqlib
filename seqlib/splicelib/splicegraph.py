@@ -22,41 +22,78 @@ class SpliceGraph(object):
         
           3'      5'
         - CT------AC
+
+        a collection of hashes of lists representing all splice site 
+        and all exon boundary relationships
+
         """
         
         self.contig = contig
-
+        
         self.F_3p_5p_ss = kwargs["F_3p_5p_ss"]
         self.F_5p_3p_ss = kwargs["F_5p_3p_ss"]
         self.R_3p_5p_ss = kwargs["R_3p_5p_ss"]
         self.R_5p_3p_ss = kwargs["R_5p_3p_ss"]
         
-        self.F_exon_3p_5p = kwargs["F_exon_3p_5p"]
-        self.F_exon_5p_3p = kwargs["F_exon_5p_3p"]
-        self.R_exon_3p_5p = kwargs["R_exon_3p_5p"]
-        self.R_exon_5p_3p = kwargs["R_exon_5p_3p"]
+        self.F_exon_s_e = kwargs["F_exon_s_e"]
+        self.F_exon_e_s = kwargs["F_exon_e_s"]
+        self.R_exon_s_e = kwargs["R_exon_s_e"]
+        self.R_exon_e_s = kwargs["R_exon_e_s"]
+    
+    def get_common_shortest_exon(self, ss, ss_type, strand):
+        """
+        ss_type = 5' | 3'
+        strand = FWD | REV 
+
+        all exons should be returned s<e
+        """
+        assert ss_type == "5'" or ss_type == "3'"
+        assert strand == "FWD" or strand == "REV"
+
+        if strand == "FWD":
+            if ss_type == "5'":
+                return tuple([max(self.F_exon_e_s[ss]), ss])
+            else:
+                return tuple([ss, min(self.F_exon_s_e[ss])])
+        else:
+            if ss_type == "5'":
+                return tuple([ss, min(self.R_exon_s_e[ss])])
+            else:
+                return tuple([max(self.R_exon_e_s[ss]), ss])
+    
 
     def get_NAGNAGs(self, n=33):
         """
         define NAGNAG
         SD SA1,SA2 where SA1 and SA2 are within n bp of each other
-        """
         
+        assuming common shortest here in all cases
+        """
+         
         #FWD
+        """
+        get all NAGNAGs on FWD strand
+        """
         for ss_5p, ss_3p_list in self.F_5p_3p_ss.iteritems():
             ss_3ps = np.sort(np.array(ss_3p_list))
             d = np.diff(ss_3ps)
             for w in np.where(d<=n)[0]:
-                print "F:", self.contig, ss_5p, ss_3ps[w], ss_3ps[w+1], d[w]
+                upstream_exon = self.get_common_shortest_exon(ss_5p, "5'", "FWD")
+                downstream_exon = self.get_common_shortest_exon(ss_3ps[w], "3'", "FWD")
+                print upstream_exon
+                print "\tF:", self.contig, ss_5p, ss_3ps[w], ss_3ps[w+1], d[w]
+                print downstream_exon
         
         #REV
-        for ss_5p, ss_3p_list in self.R_5p_3p_ss.iteritems():
-            ss_3ps = np.sort(np.array(ss_3p_list))
-            d = np.diff(ss_3ps)
-            for w in np.where(d<=n)[0]:
-                print "R:", self.contig, ss_3ps[w], ss_3ps[w+1], ss_5p, d[w]
+        """
+        get all NAGNAGs on REV strand
+        """
+        #for ss_5p, ss_3p_list in self.R_5p_3p_ss.iteritems():
+        #    ss_3ps = np.sort(np.array(ss_3p_list))
+        #    d = np.diff(ss_3ps)
+        #    for w in np.where(d<=n)[0]:
+        #        print "R:", self.contig, ss_3ps[w], ss_3ps[w+1], ss_5p, d[w]
             
-
 
 
     def enumerate_splice_junctions(self, seq):
@@ -100,33 +137,33 @@ def init_splice_graphs_from_gff(fn_gff, contigs = [], features = ["transcript", 
         print >>stderr, "parsing records for record id:%s..."%rec.id
         #contig_seq = fa.get_sequence(rec.id)
                    
-        F_3p_5p_ss = defaultdict(list) 
-        F_5p_3p_ss = defaultdict(list)
-        R_3p_5p_ss = defaultdict(list)
-        R_5p_3p_ss = defaultdict(list)
+        F_3p_5p_ss = {} 
+        F_5p_3p_ss = {}  
+        R_3p_5p_ss = {} 
+        R_5p_3p_ss = {} 
 
-        F_exon_5p_3p = defaultdict(list) 
-        F_exon_3p_5p = defaultdict(list)
-        R_exon_5p_3p = defaultdict(list)
-        R_exon_3p_5p = defaultdict(list)
+        F_exon_s_e = {} 
+        F_exon_e_s = {} 
+        R_exon_s_e = {} 
+        R_exon_e_s = {} 
 
         for feature in rec.features:
             if feature.type in features:
                 t = Transcript.init_from_feature(feature)
                 #alt_ss = t.get_all_3pSS(contig_seq)
                 if t.strand == 1:
-                    t.get_splice_junctions(F_3p_5p_ss, F_5p_3p_ss, F_exon_3p_5p, F_exon_5p_3p)
+                    t.get_splice_junctions(F_3p_5p_ss, F_5p_3p_ss, F_exon_s_e, F_exon_e_s)
                 else:
-                    t.get_splice_junctions(R_3p_5p_ss, R_5p_3p_ss, R_exon_3p_5p, R_exon_5p_3p)
+                    t.get_splice_junctions(R_3p_5p_ss, R_5p_3p_ss, R_exon_s_e, R_exon_e_s)
         
         SGs_by_contig[contig] = SpliceGraph(contig, F_3p_5p_ss = F_3p_5p_ss, 
                                                     F_5p_3p_ss = F_5p_3p_ss, 
                                                     R_3p_5p_ss = R_3p_5p_ss, 
                                                     R_5p_3p_ss = R_5p_3p_ss, 
-                                                    F_exon_3p_5p = F_exon_3p_5p,
-                                                    F_exon_5p_3p = F_exon_5p_3p,
-                                                    R_exon_3p_5p = R_exon_3p_5p,
-                                                    R_exon_5p_3p = R_exon_5p_3p)
+                                                    F_exon_s_e = F_exon_s_e,
+                                                    F_exon_e_s = F_exon_e_s,
+                                                    R_exon_s_e = R_exon_s_e,
+                                                    R_exon_e_s = R_exon_e_s)
     return SGs_by_contig
     
 #for rec in GFF_parser.parse_in_parts(open(o.fn_gff), limit_info=limit_info):
