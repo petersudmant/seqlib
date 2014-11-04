@@ -31,10 +31,12 @@ class Transcript:
                 alts = np.array([m.start() for m in re.finditer("CT",seq[e1_e:e2_s])])
             return alts 
     
-    def get_splice_junctions(self, _3p_to_5p, _5p_to_3p, _exon_3p_to_5p, _exon_5p_to_3p):
+    def get_splice_junctions(self, _3p_to_5p, _5p_to_3p, _exon_s_to_e, _exon_e_to_s):
         """
         side effect - modifies passed in dicts
         5p_to_3p and 3p_to_5p are strand specific defaultdicts
+        all exons "starts" are strictly < exon "ends"
+        not even for exons all the 5'/3' desigations are intron ss based
                           ___
          ---->         5'/   \ 3' 
          |         -----/     \-----
@@ -48,31 +50,46 @@ class Transcript:
             e1_s, e1_e = self.exons[i]
             e2_s, e2_e = self.exons[i+1]
             assert e1_s < e1_e and e2_s < e2_e
-                
+            
+            #add the exons
+            if not e1_s in _exon_s_to_e: _exon_s_to_e[e1_s] = []
+            if not e1_e in _exon_e_to_s: _exon_e_to_s[e1_e] = []
+
+            if not e1_e in _exon_s_to_e[e1_s]:
+                _exon_s_to_e[e1_s].append(e1_e)
+                _exon_e_to_s[e1_e].append(e1_s)
+            
+            #add the introns
             if self.strand == 1:
+                #FWD
+                if not e1_e in _5p_to_3p: _5p_to_3p[e1_e] = []
+                if not e2_s in _3p_to_5p: _3p_to_5p[e1_e] = []
+                    
                 if not e2_s in _5p_to_3p[e1_e]:
                     _5p_to_3p[e1_e].append(e2_s)
                     _3p_to_5p[e2_s].append(e1_e)
-                if not e1_e in _exon_5p_to_3p[e1_s]:
-                    _exon_5p_to_3p[e1_s].append(e1_e)
-                    _exon_3p_to_5p[e1_e].append(e1_s)
                 #ret.append(tuple([seq[e1_e:e1_e+2],seq[e2_s-2:e2_s]]))
             else:
+                #REV
+                if not e2_s in _5p_to_3p: _5p_to_3p[e2_s] = []
+                if not e1_e in _3p_to_5p: _3p_to_5p[e1_e] = []
+
                 if not e1_e in _5p_to_3p[e2_s]:
                     _5p_to_3p[e2_s].append(e1_e)
                     _3p_to_5p[e1_e].append(e2_s)
-                if not e1_s in _exon_5p_to_3p[e1_e]:
-                    _exon_5p_to_3p[e1_e].append(e1_s)
-                    _exon_3p_to_5p[e1_s].append(e1_e)
 
                 #ret.append(tuple([revcomp(seq[e2_s-2:e2_s]), revcomp(seq[e1_e:e1_e+2])])) 
+        """
+        add the last exon
+        """
         e1_s, e1_e = self.exons[-1]
-        if self.strand == 1:
-            _exon_5p_to_3p[e1_s].append(e1_e)
-            _exon_3p_to_5p[e1_e].append(e1_s)
-        else:
-            _exon_5p_to_3p[e1_e].append(e1_s)
-            _exon_3p_to_5p[e1_s].append(e1_e)
+        #add the exons
+        if not e1_s in _exon_s_to_e: _exon_s_to_e[e1_s] = []
+        if not e1_e in _exon_e_to_s: _exon_e_to_s[e1_e] = []
+        
+        if not e1_e in _exon_s_to_e[e1_s]:
+            _exon_s_to_e[e1_s].append(e1_e)
+            _exon_e_to_s[e1_e].append(e1_s)
         
     @classmethod
     def init_from_feature(cls, feature):
