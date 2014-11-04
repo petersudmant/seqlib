@@ -12,8 +12,8 @@ class Transcript:
     
     def print_out(self):
         print self.feature_ID
-        print "\t", self.gene_name
-        print "\t", self.gene_ID 
+        print "\t", self.gene_name #important
+        print "\t", self.gene_ID  #important
         print "\t", self.g_start
         print "\t", self.g_end
         print "\t", self.exons

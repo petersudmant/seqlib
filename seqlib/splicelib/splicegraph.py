@@ -39,7 +39,12 @@ class SpliceGraph(object):
         self.F_exon_e_s = kwargs["F_exon_e_s"]
         self.R_exon_s_e = kwargs["R_exon_s_e"]
         self.R_exon_e_s = kwargs["R_exon_e_s"]
-    
+        
+        self.F_5p_to_gene_info = kwargs["F_5p_to_gene_info"]
+        self.F_3p_to_gene_info = kwargs["F_3p_to_gene_info"]
+        self.R_5p_to_gene_info = kwargs["R_5p_to_gene_info"]
+        self.R_3p_to_gene_info = kwargs["R_3p_to_gene_info"]
+        
     def get_common_shortest_exon(self, ss, ss_type, strand):
         """
         ss_type = 5' | 3'
@@ -83,7 +88,21 @@ class SpliceGraph(object):
                 print upstream_exon
                 print "\tF:", self.contig, ss_5p, ss_3ps[w], ss_3ps[w+1], d[w]
                 print downstream_exon
-        
+                print self.F_5p_to_gene_info[upstream_exon[1]]
+                #currently gets EXTANT NAGNAGS
+                #nagNnag_T = Transcript(
+                """
+                new_t = Transcript({"feature_ID":"",
+                                    ""
+                self.feature_ID = kwargs['feature_ID'] 
+                self.gene_name = kwargs['gene_name'] 
+                self.gene_ID = kwargs['gene_ID'] 
+                self.g_start = kwargs['g_start'] 
+                self.g_end = kwargs['g_end'] 
+                self.exons = kwargs['exons']
+                self.strand = kwargs['strand']
+                pdb.set_trace()
+        """ 
         #REV
         """
         get all NAGNAGs on REV strand
@@ -122,7 +141,7 @@ class SpliceGraph(object):
         print rev_5p, np.sum(rev_5p.values())
         print rev_3p, np.sum(rev_3p.values())
 
-def init_splice_graphs_from_gff(fn_gff, contigs = [], features = ["transcript", "mRNA"]):
+def init_splice_graphs_from_gff(fn_gff, contigs = [], features = ["transcript", "mRNA", "protein_coding"]):
     """
     limit_info={"gff_id": ["13"]}
     """
@@ -147,14 +166,29 @@ def init_splice_graphs_from_gff(fn_gff, contigs = [], features = ["transcript", 
         R_exon_s_e = {} 
         R_exon_e_s = {} 
 
+        F_5p_to_gene_info = {}
+        F_3p_to_gene_info = {}
+        R_5p_to_gene_info = {}
+        R_3p_to_gene_info = {}
+
         for feature in rec.features:
             if feature.type in features:
                 t = Transcript.init_from_feature(feature)
                 #alt_ss = t.get_all_3pSS(contig_seq)
                 if t.strand == 1:
-                    t.get_splice_junctions(F_3p_5p_ss, F_5p_3p_ss, F_exon_s_e, F_exon_e_s)
+                    t.get_splice_junctions(F_3p_5p_ss, 
+                                           F_5p_3p_ss, 
+                                           F_exon_s_e, 
+                                           F_exon_e_s, 
+                                           F_5p_to_gene_info, 
+                                           F_3p_to_gene_info)
                 else:
-                    t.get_splice_junctions(R_3p_5p_ss, R_5p_3p_ss, R_exon_s_e, R_exon_e_s)
+                    t.get_splice_junctions(R_3p_5p_ss, 
+                                           R_5p_3p_ss, 
+                                           R_exon_s_e, 
+                                           R_exon_e_s, 
+                                           R_5p_to_gene_info, 
+                                           R_3p_to_gene_info)
         
         SGs_by_contig[contig] = SpliceGraph(contig, F_3p_5p_ss = F_3p_5p_ss, 
                                                     F_5p_3p_ss = F_5p_3p_ss, 
@@ -163,7 +197,11 @@ def init_splice_graphs_from_gff(fn_gff, contigs = [], features = ["transcript", 
                                                     F_exon_s_e = F_exon_s_e,
                                                     F_exon_e_s = F_exon_e_s,
                                                     R_exon_s_e = R_exon_s_e,
-                                                    R_exon_e_s = R_exon_e_s)
+                                                    R_exon_e_s = R_exon_e_s,
+                                                    F_5p_to_gene_info = F_5p_to_gene_info,
+                                                    F_3p_to_gene_info = F_3p_to_gene_info,
+                                                    R_5p_to_gene_info = R_5p_to_gene_info,
+                                                    R_3p_to_gene_info = R_3p_to_gene_info)
     return SGs_by_contig
     
 #for rec in GFF_parser.parse_in_parts(open(o.fn_gff), limit_info=limit_info):
