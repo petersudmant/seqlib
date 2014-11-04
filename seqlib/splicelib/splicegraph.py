@@ -83,26 +83,42 @@ class SpliceGraph(object):
             ss_3ps = np.sort(np.array(ss_3p_list))
             d = np.diff(ss_3ps)
             for w in np.where(d<=n)[0]:
-                upstream_exon = self.get_common_shortest_exon(ss_5p, "5'", "FWD")
-                downstream_exon = self.get_common_shortest_exon(ss_3ps[w], "3'", "FWD")
-                print upstream_exon
+                us_exon = self.get_common_shortest_exon(ss_5p, "5'", "FWD")
+                ds_exon = self.get_common_shortest_exon(ss_3ps[w], "3'", "FWD")
+                print us_exon
                 print "\tF:", self.contig, ss_5p, ss_3ps[w], ss_3ps[w+1], d[w]
-                print downstream_exon
-                print self.F_5p_to_gene_info[upstream_exon[1]]
+                print ds_exon
                 #currently gets EXTANT NAGNAGS
-                #nagNnag_T = Transcript(
-                """
-                new_t = Transcript({"feature_ID":"",
-                                    ""
-                self.feature_ID = kwargs['feature_ID'] 
-                self.gene_name = kwargs['gene_name'] 
-                self.gene_ID = kwargs['gene_ID'] 
-                self.g_start = kwargs['g_start'] 
-                self.g_end = kwargs['g_end'] 
-                self.exons = kwargs['exons']
-                self.strand = kwargs['strand']
+                us_gene_inf = self.F_5p_to_gene_info[us_exon[1]]
+                ds_gene_inf = self.F_3p_to_gene_info[ds_exon[0]]
+
+                gene_inf = []
+                for inf in us_gene_inf+ds_gene_inf:
+                    if not inf in gene_inf: gene_inf.append(inf)
+                
+                exon_paths = {"A":[0,1], "B":[0,2]}
+                EXONS  = [us_exon, [ss_3ps[w], ds_exon[1]], ds_exon]
+                FEATURE_ID = ",".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS])
+                GENE_NAME = ",".join(["%s"%gi['gene_name'] for gi in gene_inf])
+                GENE_ID = ",".join(["%s"%gi['gene_ID'] for gi in gene_inf])
+                G_START = us_exon[0]
+                G_END = ds_exon[1]
+                STRAND = 1
+
+                nagNnag_T = Transcript(contig = self.contig, 
+                                       feature_ID = FEATURE_ID,
+                                       exons = EXONS, 
+                                       gene_name = GENE_NAME,
+                                       gene_ID = GENE_ID,
+                                       g_start = G_START,
+                                       g_end = G_END,
+                                       strand = STRAND)
+                 
+                s = nagNnag_T.gff_string(exon_paths, "NAGNNAG_annotated")
+                print s
                 pdb.set_trace()
-        """ 
+                 
+                
         #REV
         """
         get all NAGNAGs on REV strand
@@ -173,7 +189,7 @@ def init_splice_graphs_from_gff(fn_gff, contigs = [], features = ["transcript", 
 
         for feature in rec.features:
             if feature.type in features:
-                t = Transcript.init_from_feature(feature)
+                t = Transcript.init_from_feature(contig, feature)
                 #alt_ss = t.get_all_3pSS(contig_seq)
                 if t.strand == 1:
                     t.get_splice_junctions(F_3p_5p_ss, 

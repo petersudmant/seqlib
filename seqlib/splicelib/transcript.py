@@ -5,6 +5,7 @@ class Transcript:
         self.feature_ID = kwargs['feature_ID'] 
         self.gene_name = kwargs['gene_name'] 
         self.gene_ID = kwargs['gene_ID'] 
+        self.contig = kwargs['contig'] 
         self.g_start = kwargs['g_start'] 
         self.g_end = kwargs['g_end'] 
         self.exons = kwargs['exons']
@@ -21,6 +22,50 @@ class Transcript:
     
     def get_gene_info(self):
         return {"gene_name":self.gene_name, "gene_ID": self.gene_ID}
+
+    def gff_string(self, exon_paths, source):
+        """
+        gene / mRNA / exon / exon
+        """
+        gff_lines = []
+        pattern = "{contig}\t{source}\t{_type}\t{start}\t{end}\t.\t{strand}\t.\tID={ID};{other}"
+        gff_lines.append( pattern.format(contig=self.contig, 
+                                         source = source, 
+                                         _type = "gene", 
+                                         start = self.g_start,
+                                         end = self.g_end, 
+                                         strand = self.strand,
+                                         ID = self.feature_ID,
+                                         other = "Name=%s;gene_ID=%s"%(self.gene_name, self.gene_ID)))
+        """
+        now, iterate over exon combinations
+        """
+        for curr_ID, e_path in exon_paths.iteritems():
+            mRNA_ID = "%s,%s"%(self.feature_ID, curr_ID)
+            gff_lines.append( pattern.format(contig=self.contig, 
+                                             source = source, 
+                                             _type = "mRNA", 
+                                             start = self.g_start,
+                                             end = self.g_end, 
+                                             strand = self.strand,
+                                             ID = mRNA_ID, 
+                                             other = "Parent=%s"%(self.feature_ID)))
+            for exon_i in e_path:
+                e_start, e_end = self.exons[exon_i]
+                exon_ID = "%s,%d"%(mRNA_ID,exon_i) 
+                gff_lines.append( pattern.format(contig=self.contig, 
+                                                 source = source, 
+                                                 _type = "exon", 
+                                                 start = self.e_start,
+                                                 end = self.e_end, 
+                                                 strand = self.strand,
+                                                 ID = exon_ID, 
+                                                 other = "Parent=%s"%(mRNA_ID)))
+        
+        return "\n".join(gff_strings) 
+
+
+
 
     def get_all_3pSS(self, seq):
 
@@ -106,11 +151,11 @@ class Transcript:
             _exon_e_to_s[e1_e].append(e1_s)
         
     @classmethod
-    def init_from_feature(cls, feature):
+    def init_from_feature(cls, contig, feature):
         """
         assuming that all exons are orders s<e
         """
-        kwargs = {
+        kwargs = {'contig' : contig,
                   'feature_ID': feature.id,
                   'gene_name': feature.qualifiers['gene_name'][0],
                   'gene_ID': feature.qualifiers['geneID'][0],
