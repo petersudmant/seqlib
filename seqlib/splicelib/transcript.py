@@ -63,7 +63,7 @@ class Transcript:
             if self.strand == 1:
                 #FWD
                 if not e1_e in _5p_to_3p: _5p_to_3p[e1_e] = []
-                if not e2_s in _3p_to_5p: _3p_to_5p[e1_e] = []
+                if not e2_s in _3p_to_5p: _3p_to_5p[e2_s] = []
                     
                 if not e2_s in _5p_to_3p[e1_e]:
                     _5p_to_3p[e1_e].append(e2_s)
