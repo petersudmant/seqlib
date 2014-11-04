@@ -19,6 +19,9 @@ class Transcript:
         print "\t", self.exons
         print "\t", self.strand
     
+    def get_gene_info(self):
+        return {"gene_name":self.gene_name, "gene_ID": self.gene_ID}
+
     def get_all_3pSS(self, seq):
 
         for i in xrange(len(self.exons)-1):
@@ -31,7 +34,7 @@ class Transcript:
                 alts = np.array([m.start() for m in re.finditer("CT",seq[e1_e:e2_s])])
             return alts 
     
-    def get_splice_junctions(self, _3p_to_5p, _5p_to_3p, _exon_s_to_e, _exon_e_to_s):
+    def get_splice_junctions(self, _3p_to_5p, _5p_to_3p, _exon_s_to_e, _exon_e_to_s, _5p_to_gene_info, _3p_to_gene_info):
         """
         side effect - modifies passed in dicts
         5p_to_3p and 3p_to_5p are strand specific defaultdicts
@@ -45,6 +48,8 @@ class Transcript:
             -----/     \-----        |
         """
        
+        gene_inf = self.get_gene_info()
+
         for i in xrange(len(self.exons)-1):
 
             e1_s, e1_e = self.exons[i]
@@ -64,21 +69,30 @@ class Transcript:
                 #FWD
                 if not e1_e in _5p_to_3p: _5p_to_3p[e1_e] = []
                 if not e2_s in _3p_to_5p: _3p_to_5p[e2_s] = []
+                if not e1_e in _5p_to_gene_info: _5p_to_gene_info[e1_e] = []
+                if not e2_s in _3p_to_gene_info: _3p_to_gene_info[e2_s] = []
                     
                 if not e2_s in _5p_to_3p[e1_e]:
                     _5p_to_3p[e1_e].append(e2_s)
                     _3p_to_5p[e2_s].append(e1_e)
-                #ret.append(tuple([seq[e1_e:e1_e+2],seq[e2_s-2:e2_s]]))
+                
+                if not gene_inf in _5p_to_gene_info[e1_e]: _5p_to_gene_info[e1_e].append(gene_inf)
+                if not gene_inf in _3p_to_gene_info[e2_s]: _3p_to_gene_info[e2_s].append(gene_inf)
+
             else:
                 #REV
                 if not e2_s in _5p_to_3p: _5p_to_3p[e2_s] = []
                 if not e1_e in _3p_to_5p: _3p_to_5p[e1_e] = []
+                if not e2_s in _5p_to_gene_info: _5p_to_gene_info[e2_s] = []
+                if not e1_e in _3p_to_gene_info: _3p_to_gene_info[e1_e] = []
 
                 if not e1_e in _5p_to_3p[e2_s]:
                     _5p_to_3p[e2_s].append(e1_e)
                     _3p_to_5p[e1_e].append(e2_s)
-
-                #ret.append(tuple([revcomp(seq[e2_s-2:e2_s]), revcomp(seq[e1_e:e1_e+2])])) 
+                
+                if not gene_inf in _5p_to_gene_info[e2_s]: _5p_to_gene_info[e2_s].append(gene_inf)
+                if not gene_inf in _3p_to_gene_info[e1_e]: _3p_to_gene_info[e1_e].append(gene_inf)
+                    
         """
         add the last exon
         """
