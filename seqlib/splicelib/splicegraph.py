@@ -2,11 +2,14 @@ import numpy as np
 import pdb
 import argparse
 import BCBio.GFF as GFF
+import re
+import string 
+
 from transcript import Transcript
 from collections import defaultdict
 from sys import stderr
+from fastahack import FastaHack
 
-import string 
 trans = string.maketrans('ATCGatcg', 'TAGCtacg')
 
 def revcomp(s):
@@ -80,7 +83,7 @@ class SpliceGraph(object):
                 return tuple([max(self.R_exon_e_s[ss]), ss])
     
 
-    def get_NAGNAGs(self, F_gff, F_bed, n=33):
+    def get_NAGNAGs(self, seq, F_gff, F_bed, n=33):
         """
         define NAGNAG
         SD SA1,SA2 where SA1 and SA2 are within n bp of each other
@@ -104,7 +107,10 @@ class SpliceGraph(object):
             for inf in us_gene_inf+ds_gene_inf:
                 if not inf in gene_inf: gene_inf.append(inf)
             
-            for ss_3p in xrange(max_ss_3p-n, max_ss_3p):
+            k = min(n, max_ss_3p-ss_5p)
+            alt_3p_AG = np.array([m.start()+(max_ss_3p-k)+2 for m in re.finditer("AG", seq[max_ss_3p-k:max_ss_3p-2])])
+            
+            for ss_3p in alt_3p_AG:
                 if ss_3p in annotated_ss_3p: 
                     source = "NAGNNAG_annotated"
                 else:
@@ -130,7 +136,7 @@ class SpliceGraph(object):
                                        strand = STRAND)
                  
                 gff_s = nagNnag_T.gff_string(exon_paths, source)
-                bed_s = nagNnag_T.bed_string(exon_paths, source)
+                bed_s = nagNnag_T.bed_string(exon_paths, source, True)
                 F_gff.write(gff_s)
                 F_bed.write(bed_s)
                 

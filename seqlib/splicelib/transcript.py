@@ -24,14 +24,19 @@ class Transcript:
     def get_gene_info(self):
         return {"gene_name":self.gene_name, "gene_ID": self.gene_ID}
     
-    def bed_string(self, exon_paths, source):
+    def bed_string(self, exon_paths, source, UCSC=False):
         bed_lines = []
-        pattern = "{contig}\t{start}\t{end}\t{name}\t{RGB}\t{n_exons}\t{exon_sizes}\t{exon_starts}"
+        pattern = "{contig}\t{start}\t{end}\t{name}\t0\t{strand}\t{start}\t{end}\t{RGB}\t{n_exons}\t{exon_sizes}\t{exon_starts}"
         strand = self.strand == 1 and "+" or "-"
         
+        formatted_contig = self.contig
+        if UCSC and "chr" not in self.contig:
+            formatted_contig  = "chr%s"%self.contig
+
         for curr_ID, e_path in exon_paths.iteritems():
             curr_exons = [self.exons[i] for i in e_path]
-            bed_lines.append(pattern.format(contig=self.contig,
+            min_p = min([min(e[0],e[1]) for e in curr_exons])
+            bed_lines.append(pattern.format(contig=formatted_contig,
                                             start = self.g_start,
                                             end = self.g_end,
                                             name="%s,%s"%(self.feature_ID, curr_ID),
@@ -39,7 +44,7 @@ class Transcript:
                                             RGB = "0,200,100",
                                             n_exons = len(curr_exons),
                                             exon_sizes = ",".join(["%d"%(e[1]-e[0]) for e in curr_exons]),
-                                            exon_starts = ",".join(["%d"%e[0] for e in curr_exons]) ))
+                                            exon_starts = ",".join(["%d"%(e[0]-min_p) for e in curr_exons]) ))
 
         return "%s\n"%("\n".join(bed_lines))
 
@@ -118,7 +123,8 @@ class Transcript:
             e1_s, e1_e = self.exons[i]
             e2_s, e2_e = self.exons[i+1]
             assert e1_s < e1_e and e2_s < e2_e
-            
+            assert e1_e < e2_s #previously whack due to CDS
+
             #add the exons
             if not e1_s in _exon_s_to_e: _exon_s_to_e[e1_s] = []
             if not e1_e in _exon_e_to_s: _exon_e_to_s[e1_e] = []
@@ -141,6 +147,7 @@ class Transcript:
                 
                 if not gene_inf in _5p_to_gene_info[e1_e]: _5p_to_gene_info[e1_e].append(gene_inf)
                 if not gene_inf in _3p_to_gene_info[e2_s]: _3p_to_gene_info[e2_s].append(gene_inf)
+                   
 
             else:
                 #REV
@@ -155,7 +162,7 @@ class Transcript:
                 
                 if not gene_inf in _5p_to_gene_info[e2_s]: _5p_to_gene_info[e2_s].append(gene_inf)
                 if not gene_inf in _3p_to_gene_info[e1_e]: _3p_to_gene_info[e1_e].append(gene_inf)
-                    
+                
         """
         add the last exon
         """
@@ -181,7 +188,7 @@ class Transcript:
                   'g_start': feature.location.start.position,
                   'g_end': feature.location.end.position,
                   'exons':[[s.location.start.position,
-                            s.location.end.position] for s in feature.sub_features]
+                            s.location.end.position] for s in feature.sub_features if s.type=="exon"]
                   }
                   
         return cls(**kwargs)

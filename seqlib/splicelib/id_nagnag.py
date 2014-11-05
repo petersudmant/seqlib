@@ -28,11 +28,11 @@ if __name__=="__main__":
         
     F_gff = open(o.fn_output_gff,'w')
     F_bed = open(o.fn_output_bed,'w')
-    F_bed.write("""track name=HSA_NAGNNAGs description="HSA NAGNNAGS" visibility=2""")
+    F_bed.write("""track name=HSA_NAGNNAGs description="HSA NAGNNAGS" visibility=2\n""")
     
     for contig, splice_graph in splice_graphs_by_contig.iteritems():
         seq = fa.get_sequence(contig)
         splice_graph.enumerate_splice_junctions(seq)
-        splice_graph.get_NAGNAGs(F_gff, F_bed)
+        splice_graph.get_NAGNAGs(seq, F_gff, F_bed)
     
 
