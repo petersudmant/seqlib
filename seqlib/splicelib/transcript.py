@@ -29,12 +29,13 @@ class Transcript:
         """
         gff_lines = []
         pattern = "{contig}\t{source}\t{_type}\t{start}\t{end}\t.\t{strand}\t.\tID={ID};{other}"
+        strand = self.strand == 1 and "+" or "-"
         gff_lines.append( pattern.format(contig=self.contig, 
                                          source = source, 
                                          _type = "gene", 
                                          start = self.g_start,
                                          end = self.g_end, 
-                                         strand = self.strand,
+                                         strand = strand,
                                          ID = self.feature_ID,
                                          other = "Name=%s;gene_ID=%s"%(self.gene_name, self.gene_ID)))
         """
@@ -47,7 +48,7 @@ class Transcript:
                                              _type = "mRNA", 
                                              start = self.g_start,
                                              end = self.g_end, 
-                                             strand = self.strand,
+                                             strand = strand,
                                              ID = mRNA_ID, 
                                              other = "Parent=%s"%(self.feature_ID)))
             for exon_i in e_path:
@@ -56,13 +57,13 @@ class Transcript:
                 gff_lines.append( pattern.format(contig=self.contig, 
                                                  source = source, 
                                                  _type = "exon", 
-                                                 start = self.e_start,
-                                                 end = self.e_end, 
-                                                 strand = self.strand,
+                                                 start = e_start,
+                                                 end = e_end, 
+                                                 strand = strand,
                                                  ID = exon_ID, 
                                                  other = "Parent=%s"%(mRNA_ID)))
         
-        return "\n".join(gff_strings) 
+        return "%s\n"%("\n".join(gff_lines))
 
 
 
