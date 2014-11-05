@@ -51,6 +51,19 @@ class SpliceGraph(object):
         strand = FWD | REV 
 
         all exons should be returned s<e
+
+        NOTE: given 
+                5'-1
+            -----  5'-2
+            --------
+            this will return 5'-2
+            BUT, given
+            
+                5'-1
+            -----  5'-2
+            --------
+              -- 5'-3
+            this will still return 5'-2, I THINK this is correct...
         """
         assert ss_type == "5'" or ss_type == "3'"
         assert strand == "FWD" or strand == "REV"
@@ -67,37 +80,39 @@ class SpliceGraph(object):
                 return tuple([max(self.R_exon_e_s[ss]), ss])
     
 
-    def get_NAGNAGs(self, n=33):
+    def get_NAGNAGs(self, F_gff, F_bed, n=33):
         """
         define NAGNAG
         SD SA1,SA2 where SA1 and SA2 are within n bp of each other
         
         assuming common shortest here in all cases
         """
-         
+        
         #FWD
         """
         get all NAGNAGs on FWD strand
         """
         for ss_5p, ss_3p_list in self.F_5p_3p_ss.iteritems():
-            ss_3ps = np.sort(np.array(ss_3p_list))
-            d = np.diff(ss_3ps)
-            for w in np.where(d<=n)[0]:
-                us_exon = self.get_common_shortest_exon(ss_5p, "5'", "FWD")
-                ds_exon = self.get_common_shortest_exon(ss_3ps[w], "3'", "FWD")
-                print us_exon
-                print "\tF:", self.contig, ss_5p, ss_3ps[w], ss_3ps[w+1], d[w]
-                print ds_exon
+            annotated_ss_3p = np.sort(np.array(ss_3p_list))
+            max_ss_3p = annotated_ss_3p[-1]
+            ds_exon = self.get_common_shortest_exon(max_ss_3p, "3'", "FWD")
+            us_exon = self.get_common_shortest_exon(ss_5p, "5'", "FWD")
+            us_gene_inf = self.F_5p_to_gene_info[us_exon[1]]
+            ds_gene_inf = self.F_3p_to_gene_info[ds_exon[0]]
+            
+            gene_inf = []
+            for inf in us_gene_inf+ds_gene_inf:
+                if not inf in gene_inf: gene_inf.append(inf)
+            
+            for ss_3p in xrange(max_ss_3p-n, max_ss_3p):
+                if ss_3p in annotated_ss_3p: 
+                    source = "NAGNNAG_annotated"
+                else:
+                    source = "NAGNNAG"
                 #currently gets EXTANT NAGNAGS
-                us_gene_inf = self.F_5p_to_gene_info[us_exon[1]]
-                ds_gene_inf = self.F_3p_to_gene_info[ds_exon[0]]
-
-                gene_inf = []
-                for inf in us_gene_inf+ds_gene_inf:
-                    if not inf in gene_inf: gene_inf.append(inf)
-                
+                 
                 exon_paths = {"A":[0,1], "B":[0,2]}
-                EXONS  = [us_exon, [ss_3ps[w], ds_exon[1]], ds_exon]
+                EXONS  = [us_exon, [ss_3p, ds_exon[1]], ds_exon]
                 FEATURE_ID = ",".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS])
                 GENE_NAME = ",".join(["%s"%gi['gene_name'] for gi in gene_inf])
                 GENE_ID = ",".join(["%s"%gi['gene_ID'] for gi in gene_inf])
@@ -114,10 +129,10 @@ class SpliceGraph(object):
                                        g_end = G_END,
                                        strand = STRAND)
                  
-                s = nagNnag_T.gff_string(exon_paths, "NAGNNAG_annotated")
-                print s
-                pdb.set_trace()
-                 
+                gff_s = nagNnag_T.gff_string(exon_paths, source)
+                bed_s = nagNnag_T.bed_string(exon_paths, source)
+                F_gff.write(gff_s)
+                F_bed.write(bed_s)
                 
         #REV
         """

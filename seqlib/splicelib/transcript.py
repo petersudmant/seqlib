@@ -1,3 +1,4 @@
+import pdb
 
 class Transcript:
 
@@ -22,6 +23,25 @@ class Transcript:
     
     def get_gene_info(self):
         return {"gene_name":self.gene_name, "gene_ID": self.gene_ID}
+    
+    def bed_string(self, exon_paths, source):
+        bed_lines = []
+        pattern = "{contig}\t{start}\t{end}\t{name}\t{RGB}\t{n_exons}\t{exon_sizes}\t{exon_starts}"
+        strand = self.strand == 1 and "+" or "-"
+        
+        for curr_ID, e_path in exon_paths.iteritems():
+            curr_exons = [self.exons[i] for i in e_path]
+            bed_lines.append(pattern.format(contig=self.contig,
+                                            start = self.g_start,
+                                            end = self.g_end,
+                                            name="%s,%s"%(self.feature_ID, curr_ID),
+                                            strand = strand,
+                                            RGB = "0,200,100",
+                                            n_exons = len(curr_exons),
+                                            exon_sizes = ",".join(["%d"%(e[1]-e[0]) for e in curr_exons]),
+                                            exon_starts = ",".join(["%d"%e[0] for e in curr_exons]) ))
+
+        return "%s\n"%("\n".join(bed_lines))
 
     def gff_string(self, exon_paths, source):
         """
@@ -64,9 +84,6 @@ class Transcript:
                                                  other = "Parent=%s"%(mRNA_ID)))
         
         return "%s\n"%("\n".join(gff_lines))
-
-
-
 
     def get_all_3pSS(self, seq):
 
