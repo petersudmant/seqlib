@@ -35,6 +35,7 @@ class Transcript:
 
         for curr_ID, e_path in exon_paths.iteritems():
             curr_exons = [self.exons[i] for i in e_path]
+            if strand == "-": curr_exons = curr_exons[::-1] 
             min_p = min([min(e[0],e[1]) for e in curr_exons])
             bed_lines.append(pattern.format(contig=formatted_contig,
                                             start = self.g_start,
@@ -51,6 +52,10 @@ class Transcript:
     def gff_string(self, exon_paths, source):
         """
         gene / mRNA / exon / exon
+        ****NOTE****
+        GFF SPEC STIPULATES 1-based COORDS!
+        http://useast.ensembl.org/info/website/upload/gff.html
+        ***********
         """
         gff_lines = []
         pattern = "{contig}\t{source}\t{_type}\t{start}\t{end}\t.\t{strand}\t.\tID={ID};{other}"
@@ -58,8 +63,8 @@ class Transcript:
         gff_lines.append( pattern.format(contig=self.contig, 
                                          source = source, 
                                          _type = "gene", 
-                                         start = self.g_start,
-                                         end = self.g_end, 
+                                         start = self.g_start+1,
+                                         end = self.g_end+1, 
                                          strand = strand,
                                          ID = self.feature_ID,
                                          other = "Name=%s;gene_ID=%s"%(self.gene_name, self.gene_ID)))
@@ -71,8 +76,8 @@ class Transcript:
             gff_lines.append( pattern.format(contig=self.contig, 
                                              source = source, 
                                              _type = "mRNA", 
-                                             start = self.g_start,
-                                             end = self.g_end, 
+                                             start = self.g_start+1,
+                                             end = self.g_end+1, 
                                              strand = strand,
                                              ID = mRNA_ID, 
                                              other = "Parent=%s"%(self.feature_ID)))
@@ -82,8 +87,8 @@ class Transcript:
                 gff_lines.append( pattern.format(contig=self.contig, 
                                                  source = source, 
                                                  _type = "exon", 
-                                                 start = e_start,
-                                                 end = e_end, 
+                                                 start = e_start+1,
+                                                 end = e_end+1, 
                                                  strand = strand,
                                                  ID = exon_ID, 
                                                  other = "Parent=%s"%(mRNA_ID)))
