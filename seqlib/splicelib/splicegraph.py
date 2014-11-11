@@ -97,7 +97,6 @@ class SpliceGraph(object):
         """
 
         for strand_d, _5p_3p_ss in { "FWD" : self.F_5p_3p_ss, "REV" : self.R_5p_3p_ss }.iteritems():
-            
             for ss_5p, ss_3p_list in _5p_3p_ss.iteritems():
                 annotated_ss_3p = np.sort(np.array(ss_3p_list))
 
@@ -111,26 +110,37 @@ class SpliceGraph(object):
 
                 ds_exon = self.get_common_shortest_exon(annot_3p_ss, "3'", strand_d)
                 us_exon = self.get_common_shortest_exon(ss_5p, "5'", strand_d)
-
-                us_gene_inf = self.F_5p_to_gene_info[ss_5p]
-                ds_gene_inf = self.F_3p_to_gene_info[annot_3p_ss]
+                
+                if strand_d == "FWD":
+                    us_gene_inf = self.F_5p_to_gene_info[ss_5p]
+                    ds_gene_inf = self.F_3p_to_gene_info[annot_3p_ss]
+                else:
+                    us_gene_inf = self.R_5p_to_gene_info[ss_5p]
+                    ds_gene_inf = self.R_3p_to_gene_info[annot_3p_ss]
 
                 gene_inf = []
                 for inf in us_gene_inf+ds_gene_inf:
                     if not inf in gene_inf: gene_inf.append(inf)
             
                 """
-                k is the number of bp up/down of the annotated 3p ss to search for now ones
+                k is the number of bp up/down of the annotated 
+                3p ss to search for now ones
                 """
                 
-                k = min(n, abs(annot_ss_3p-ss_5p))
+                k = min(n, abs(annot_3p_ss-ss_5p))
                 ss_seq = strand_d == "FWD" and "AG" or "CT"
                 if strand_d == "FWD":
                     seq_s, seq_e = annot_3p_ss-k, annot_3p_ss-2
                 else:
                     seq_s, seq_e = annot_3p_ss+2, annot_3p_ss+k
+                """
+                offset by a 2 if in fwd dir as you want exon 
+                EXON start, not the, position of the ss
+                for rev, the position is fine already
+                """
+                delta = strand_d == "FWD" and 2 or 0 
                 
-                alt_3p_ss = np.array([m.start()+seq_s for m in re.finditer(seq_s, seq_e)])
+                alt_3p_ss = np.array([m.start()+seq_s+delta for m in re.finditer(ss_seq, seq[seq_s:seq_e].upper())])
             
                 for ss_3p in alt_3p_ss:
                     if ss_3p in annotated_ss_3p: 
