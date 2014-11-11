@@ -23,7 +23,7 @@ if __name__=="__main__":
     fa = FastaHack(o.fn_fasta)
     
     contigs = [contig for contig in fa.names]
-    contigs = ["chr20"]
+    #contigs = ["chr20"]
     #contigs = ["GL000213.1"]
 
     
