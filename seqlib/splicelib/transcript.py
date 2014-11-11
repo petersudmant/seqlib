@@ -147,8 +147,7 @@ class Transcript:
                 
                 if not gene_inf in _5p_to_gene_info[e1_e]: _5p_to_gene_info[e1_e].append(gene_inf)
                 if not gene_inf in _3p_to_gene_info[e2_s]: _3p_to_gene_info[e2_s].append(gene_inf)
-                   
-
+                
             else:
                 #REV
                 if not e2_s in _5p_to_3p: _5p_to_3p[e2_s] = []
@@ -180,9 +179,10 @@ class Transcript:
         """
         assuming that all exons are orders s<e
         """
+        gene_name = "gene_name" in feature.qualifiers and feature.qualifiers['gene_name'][0] or "."
         kwargs = {'contig' : contig,
                   'feature_ID': feature.id,
-                  'gene_name': feature.qualifiers['gene_name'][0],
+                  'gene_name': gene_name,
                   'gene_ID': feature.qualifiers['geneID'][0],
                   'strand': feature.strand,
                   'g_start': feature.location.start.position,
