@@ -24,6 +24,47 @@ class Transcript:
     def get_gene_info(self):
         return {"gene_name":self.gene_name, "gene_ID": self.gene_ID}
     
+    def junc_string(self, exon_paths, source, UCSC=False):
+        junc_lines = []
+        pattern = "{contig}\t{left}\t{right}\t{strand}"
+        
+        output_tups = []
+        for tup in self.junc_tuples(exon_paths, source, UCSC):
+            if not tup in output_tups:
+                output_tups.append(tup)
+                junc_lines.append(pattern.format(contig=tup[0],
+                                                 left = tup[1],
+                                                 right= tup[2],
+                                                 strand = tup[3]))
+        return "%s\n"%"\n".join(junc_lines)
+    
+    def junc_tuples(self, exon_paths, source, UCSC=False):
+
+        junc_tups = []
+
+        strand = self.strand == 1 and "+" or "-"
+
+        formatted_contig = self.contig
+        if UCSC and "chr" not in self.contig:
+            formatted_contig  = "chr%s"%self.contig
+
+        for curr_ID, e_path in exon_paths.iteritems():
+            curr_exons = [self.exons[i] for i in e_path]
+            if strand == "-": curr_exons = curr_exons[::-1] 
+            """
+            NOTE THE -1 here because your exon coordinates are half open, 
+            so, exon END should be -1
+            contig, left, right, strand
+            """
+            for i in xrange(len(curr_exons)-1):
+                junc_tups.append(tuple([formatted_contig,
+                                        curr_exons[i][1]-1,
+                                        curr_exons[i+1][0],
+                                        strand]))
+        return junc_tups
+
+
+
     def bed_string(self, exon_paths, source, UCSC=False):
         bed_lines = []
         pattern = "{contig}\t{start}\t{end}\t{name}\t0\t{strand}\t{start}\t{end}\t{RGB}\t{n_exons}\t{exon_sizes}\t{exon_starts}"
@@ -75,7 +116,7 @@ class Transcript:
         now, iterate over exon combinations
         """
         for curr_ID, e_path in exon_paths.iteritems():
-            mRNA_ID = "%s,%s"%(self.feature_ID, curr_ID)
+            mRNA_ID = "%s_%s"%(self.feature_ID, curr_ID)
             gff_lines.append( pattern.format(contig=self.contig, 
                                              source = source, 
                                              _type = "mRNA", 
@@ -86,7 +127,7 @@ class Transcript:
                                              other = "Parent=%s"%(self.feature_ID)))
             for exon_i in e_path:
                 e_start, e_end = self.exons[exon_i]
-                exon_ID = "%s,%d"%(mRNA_ID,exon_i) 
+                exon_ID = "%s_%d"%(mRNA_ID,exon_i) 
                 gff_lines.append( pattern.format(contig=self.contig, 
                                                  source = source, 
                                                  _type = "exon", 

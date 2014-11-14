@@ -15,6 +15,7 @@ trans = string.maketrans('ATCGatcg', 'TAGCtacg')
 def revcomp(s):
     return s.translate(trans)[::-1]
 
+
 class SpliceGraph(object):
 
     def __init__(self, contig, **kwargs):
@@ -82,13 +83,59 @@ class SpliceGraph(object):
             else:
                 return tuple([max(self.R_exon_e_s[ss]), ss])
     
+    
 
-    def get_NAGNAGs(self, seq, F_gff, F_bed, n=33):
+    def get_micro_exon(self, seq, F_gff, F_bed, n=33):
+        """
+        define micro_exon
+
+        SD1, SA1, SD2, SA2 where 
+        SA1 and SA2 are within n bp of each other
+
+        again, assuming common shortest exon here
+        """
+
+        """
+        get all 5' 3' ss pairs and search in-between for lil' guys
+        """
+        for strand_d, _5p_3p_ss in { "FWD" : self.F_5p_3p_ss, "REV" : self.R_5p_3p_ss }.iteritems():
+            
+            if strand_d == "FWD":
+                _5p_to_gene_inf = self.F_5p_to_gene_info
+                _3p_to_gene_inf = self.F_3p_to_gene_info
+            else:
+                _5p_to_gene_inf = self.R_5p_to_gene_info
+                _3p_to_gene_inf = self.R_3p_to_gene_info
+
+            for ss_5p, ss_3p_list in _5p_3p_ss.iteritems():
+                
+                us_exon = self.get_common_shortest_exon(ss_5p, "5'", strand_d)
+                us_gene_inf = _5p_to_gene_info[ss_5p]
+                
+                for ss_3p in ss_3p_list:
+                    ds_exon = self.get_common_shortest_exon(ss_3p, "3'", strand_d)
+                    ds_gene_inf = _3p_to_gene_info[ss_3p]
+                    
+                    ss_5p_seq = strand_d == "FWD" and "GT" or "AC"
+                    ss_3p_seq = strand_d == "FWD" and "AG" or "CT"
+                    
+                    s,e = sorted([ss_5p, ss_3p])
+                    s,e = s+2,e-2
+
+                    alt_5p_ss = np.array([m.start()+s for m in re.finditer(ss_5p_seq, seq[s:e].upper())])
+                    alt_3p_ss = np.array([m.start()+s for m in re.finditer(ss_3p_seq, seq[s:e].upper())])
+
+                    #OK, now ID the chunks that fit the bill!, ie, ss- < n bases -ss
+
+
+    def get_NAGNAGs(self, seq, F_gff, F_bed, junc_writer, n=33):
         """
         define NAGNAG
         SD SA1,SA2 where SA1 and SA2 are within n bp of each other
         
         assuming common shortest here in all cases
+
+        TO DO! output ONLY annotated NAGAGs...easy
         """
         
         #FWD
@@ -151,9 +198,9 @@ class SpliceGraph(object):
                     exon_paths = {"A":[0,1], "B":[0,2]}
                     NAG_exon = strand_d == "FWD" and [ss_3p, ds_exon[1]] or [ds_exon[0], ss_3p]
                     EXONS  = [us_exon, NAG_exon, ds_exon]
-                    FEATURE_ID = ",".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS])
+                    FEATURE_ID = "_".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS])
                     GENE_NAME = ",".join(["%s"%gi['gene_name'] for gi in gene_inf])
-                    GENE_ID = ",".join(["%s"%gi['gene_ID'] for gi in gene_inf])
+                    GENE_ID = "_".join(["%s"%gi['gene_ID'] for gi in gene_inf])
                     G_START = min(us_exon[0], ds_exon[0])
                     G_END = max(us_exon[1], ds_exon[1])
                     STRAND = strand_d == "FWD" and 1 or -1
@@ -169,8 +216,10 @@ class SpliceGraph(object):
                      
                     gff_s = nagNnag_T.gff_string(exon_paths, source)
                     bed_s = nagNnag_T.bed_string(exon_paths, source, True)
+                    junc_tups = nagNnag_T.junc_tuples(exon_paths, source, True)
                     F_gff.write(gff_s)
                     F_bed.write(bed_s)
+                    junc_writer.write(junc_tups)
 
     def enumerate_splice_junctions(self, seq):
         fwd_5p = defaultdict(int)
