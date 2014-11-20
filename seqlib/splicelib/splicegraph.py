@@ -128,7 +128,7 @@ class SpliceGraph(object):
                     #OK, now ID the chunks that fit the bill!, ie, ss- < n bases -ss
 
 
-    def get_NAGNAGs(self, seq, F_gff, F_bed, junc_writer, n=33):
+    def get_NAGNAGs(self, seq, F_gff, F_novel_gff, F_bed, junc_writer, n=33):
         """
         define NAGNAG
         SD SA1,SA2 where SA1 and SA2 are within n bp of each other
@@ -213,11 +213,14 @@ class SpliceGraph(object):
                                            g_start = G_START,
                                            g_end = G_END,
                                            strand = STRAND)
-                     
+
                     gff_s = nagNnag_T.gff_string(exon_paths, source)
+                    gff_novel_s = nagNnag_T.gff_string({"A":[0,1]}, source)
+
                     bed_s = nagNnag_T.bed_string(exon_paths, source, True)
                     junc_tups = nagNnag_T.junc_tuples(exon_paths, source, True)
                     F_gff.write(gff_s)
+                    F_novel_gff.write(gff_novel_s)
                     F_bed.write(bed_s)
                     junc_writer.write(junc_tups)
 

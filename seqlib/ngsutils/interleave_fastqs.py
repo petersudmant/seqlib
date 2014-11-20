@@ -23,12 +23,10 @@ if __name__=="__main__":
             l2_2 = F2.readline()
             l2_3 = F2.readline()
             l2_4 = F2.readline()
-            print("%s%s%s%s"%(l1_1,
+            print("%s%s+\n%s"%(l1_1,
                               l1_2,
-                              l1_3,
                               l1_4.rstrip()))
-            print("%s%s%s%s"%(l2_1,
+            print("%s%s+\n%s"%(l2_1,
                               l2_2,
-                              l2_3,
                               l2_4.rstrip()))
         
