@@ -3,7 +3,9 @@ import pandas as pd
 import pdb
 from sys import stderr
 import numpy as np
-from JunctionCounter import JunctionCounter
+from junction_counter import JunctionCounter
+from fastahack import FastaHack
+import pysam
 
 def get_nagnags(all_juncs):
     plus = get_nagnags_by_strand(all_juncs, "+")
@@ -74,22 +76,36 @@ def get_psi(nagnag, bam, readlen, min_overhang):
         j_dist =  tuple([nagnag['ss_3p_dist'], nagnag['ss_5p']])
         s = nagnag['ss_3p_dist']
         e = nagnag['ss_5p']
+    
+    j_prox_w_contig = tuple([contig, j_prox[0], j_prox[1]])
+    j_dist_w_contig = tuple([contig, j_dist[0], j_dist[1]])
 
-    junction_inf = {j_prox: JunctionCounter(j_prox, readlen),
-                    j_dist: JunctionCounter(j_dist, readlen)}
+    junction_inf = {j_prox: JunctionCounter(j_prox_w_contig, readlen),
+                    j_dist: JunctionCounter(j_dist_w_contig, readlen)}
 
     #print junction_inf.keys()
     for read in bam.fetch(reference=contig, start = s, end = e):
-        if len(read.blocks)==2:
-            read_junc = tuple([read.blocks[0][1]-1, read.blocks[1][0]])
+        curr_read_pos = 0
+        for i in xrange(1,len(read.blocks)):
+            read_junc = tuple([read.blocks[i-1][1]-1, read.blocks[i][0]])
+            curr_read_pos += read.blocks[i-1][1]-read.blocks[i-1][0]
             if read_junc in junction_inf: 
-                junction_inf[read_junc].add_read(read.pos)
+                junction_inf[read_junc].add_read(curr_read_pos)
         del read
-    
+
     prox_n = junction_inf[j_prox].n_supporting_reads(min_overhang) 
     dist_n = junction_inf[j_dist].n_supporting_reads(min_overhang) 
     
-    return prox_n/(dist_n+prox_n)
+    if dist_n+prox_n == 0:
+        psi = 0
+    else:
+        psi = prox_n/(dist_n+prox_n)
+
+    return psi, prox_n, dist_n
+
+def get_readlen(bam):
+    for read in bam.fetch():
+        return read.rlen
 
 if __name__=="__main__":
 
@@ -104,7 +120,6 @@ if __name__=="__main__":
     FOUT = open(o.fn_output, 'w')
 
     fa = FastaHack(o.fn_fasta)
-    tbx_juncs = pysam.Tabixfile(o.fn_juncs) 
     bam = pysam.Samfile(o.fn_bam, 'rb')
     contigs = [contig for contig in fa.names]
     #contigs = ["chr4"]
@@ -116,7 +131,7 @@ if __name__=="__main__":
                              names=["contig",
                                     "j_left",
                                     "j_right",
-                                    "strand")
+                                    "strand"])
     nagnags = get_nagnags(junc_table)
     """
     Vectors are readlen -1 because you need at least one base overlapping the
@@ -125,9 +140,20 @@ if __name__=="__main__":
     
     readlen = get_readlen(bam)
     total_read_count_vect = np.zeros(readlen-1)
-    FOUT.write('contig\tss_5p\tss_3p_prox\tss_3p_dist\tpsi\n') 
-    for nagnag in nagnags:
-        psi = get_psi(nagnag, bam, readlen, o.min_overhang)
+    FOUT.write('contig\tss_5p\tss_3p_prox\tss_3p_dist\tsize\tpsi\tprox_count\tdist_count\n') 
+    for i, nagnag in enumerate(nagnags):
+        if i %1000 == 0:
+            print i
+        psi, prox_n, dist_n = get_psi(nagnag, bam, readlen, o.min_overhang)
         nagnag['psi'] = psi
-        FOUT.write('{contig}\t{ss_5p}\t{ss_3p_prox}\t{ss_3p_dist}\t{psi}\n'.format(nagnag)) 
+        size = abs(nagnag['ss_3p_prox']-nagnag['ss_3p_dist'])
+        FOUT.write('{contig}\t{ss_5p}\t{ss_3p_prox}\t{ss_3p_dist}\t{size}\t{psi}'
+                                                   '\t{prox_n}\t{dist_n}\n'.format(contig = nagnag['contig'],
+                                                                                   psi = psi,
+                                                                                   size=size,
+                                                                                   prox_n = prox_n,
+                                                                                   dist_n = dist_n,
+                                                                                   ss_5p =nagnag['ss_5p'],
+                                                                                   ss_3p_prox = nagnag['ss_3p_prox'],
+                                                                                   ss_3p_dist = nagnag['ss_3p_dist']))
 
