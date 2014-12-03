@@ -1,5 +1,6 @@
+import numpy as np
 
-class JunctionCount(object):
+class JunctionCounter(object):
     """
     if readlen == 5 
     ____|   |____
@@ -15,8 +16,8 @@ class JunctionCount(object):
         self.readlen = readlen
         self.read_counts = np.zeros(readlen-1)
     
-    def add_read(self, read_s):
-        self.read_counts[read_s-self.wnd_start]+=1
+    def add_read(self, j_position_in_read):
+        self.read_counts[self.readlen-j_position_in_read-1]+=1
     
     def calc_entropy(self, min_o=1):
         """
