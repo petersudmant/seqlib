@@ -13,7 +13,7 @@ from junction_writer import JunctionWriter
 import pysam
 
 from guppy import hpy
-from JunctionCounter import JunctionCounter
+from junction_counter import JunctionCounter
 
 #was calculated using the following equations:
 #    pi = reads at offset i / total reads to junction window
@@ -33,11 +33,13 @@ def get_junction_entropy(contig, start, end, juncs, bam, readlen, entropy_min_ov
     
     #print junction_inf.keys()
     for read in bam.fetch(reference=contig, start = start, end = end):
-        if len(read.blocks)==2:
-            read_junc = tuple([read.blocks[0][1]-1, read.blocks[1][0]])
+        read_juncs = []
+        curr_read_pos = 0
+        for i in xrange(1,len(read.blocks)):
+            read_junc = tuple([read.blocks[i-1][1]-1, read.blocks[i][0]])
+            curr_read_pos += read.blocks[i-1][1]-read.blocks[i-1][0]
             if read_junc in junction_inf: 
-                #print "\t", read.blocks, [b[1]-b[0] for b in read.blocks]
-                junction_inf[read_junc].add_read(read.pos)
+                junction_inf[read_junc].add_read(curr_read_pos)
         del read
 
     for junc, inf in junction_inf.iteritems():
@@ -81,7 +83,6 @@ def get_cluster_trees(tbx_juncs, contigs):
     return dict(junc_clusts_by_strand_contigs), juncs_by_id
 
 def get_readlen(bam):
-    
     for read in bam.fetch():
         return read.rlen
 
