@@ -48,6 +48,12 @@ def make_json_config(xml_dict, naming_pattern, fn_add_to_config):
                 val = attribute["VALUE"]
                 j_out["samples"][sample_accession][attr] = val
 
+        if "SAMPLE_NAME" in d["SAMPLE"]:
+            for attribute_pair in d["SAMPLE"]["SAMPLE_NAME"].iteritems():
+                attr, val = attribute_pair
+                #print attr, val
+                j_out["samples"][sample_accession][attr] = val
+
         if "samples" in add.keys():
             for key, value in add["samples"][sample_accession].iteritems():
                 j_out["samples"][sample_accession][key] = value
@@ -64,7 +70,7 @@ def manual_parse(xml_dict, manually_currate = []):
     STUDY_ACC=cwd.split("/")[-1].split("_")[0] 
 
     j_out = {"study_accession":STUDY_ACC}
-    j_out["naming_pattern"] = ["sample_accession", "tissue"]
+    #j_out["naming_pattern"] = ["sample_accession", "tissue"]
     j_out["samples"] = {}
 
     for d in xml_dict["EXPERIMENT_PACKAGE_SET"]["EXPERIMENT_PACKAGE"]:
