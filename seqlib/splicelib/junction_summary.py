@@ -72,14 +72,8 @@ if __name__=="__main__":
     all_ents = T.values[:,e_cols]
     all_overhangs = T.values[:,overhang_cols]
 
-    Tout=T[~(np.sum(all_ents==0,1)==len(e_cols))]
-    #concat_T = pd.concat(tables_by_tissue.values())
-    #concat_T.to_csv(o.fn_out, sep="\t", index=False)
     Tout.to_csv(o.fn_out, sep="\t", index=False)
     
-    T_switch = T[np.sum(all_ents<o.min_entropy,1)==(len(e_cols)-1)]
-    T_switch.to_csv("%s.one_gt_min_ent"%o.fn_out, sep="\t", index=False)
-
     T_filtered = T[(np.sum(all_ents>=o.min_entropy,1)>=1)]
     T_filtered.to_csv(o.fn_filtered_juncs, 
                       sep="\t", 
