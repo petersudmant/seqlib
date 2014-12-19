@@ -16,10 +16,8 @@ def get_nagnags(all_juncs, strand, FOUT_juncs, FOUT_inf):
 
     juncs = all_juncs[all_juncs["strand"]==strand]
     juncs = juncs.sort(['contig',ss_5p_key, ss_3p_key])
-
     prev_ss_5p = None
     prev_ss_3p = None
-    
     for i, row in juncs.iterrows():
         ss_5p = row[ss_5p_key]
         ss_3p = row[ss_3p_key]
@@ -48,6 +46,8 @@ def get_nagnags(all_juncs, strand, FOUT_juncs, FOUT_inf):
                                                                       j_left=j_left2,
                                                                       j_right=j_right2,
                                                                       strand=strand))
+            prev_ss_5p = ss_5p
+            prev_ss_3p = ss_3p
         else: 
             prev_ss_5p = ss_5p
             prev_ss_3p = ss_3p
@@ -72,8 +72,8 @@ if __name__=="__main__":
     FOUT_juncs = open(o.fn_out_juncs,'w') 
     FOUT_inf = open(o.fn_out_info,'w') 
     FOUT_inf.write("contig\tss_5p\tss_3p_1\tss_3p_2\tstrand\tsize\n")
-    get_nagnags(juncs, "+", FOUT_juncs, FOUT_inf)
     get_nagnags(juncs, "-", FOUT_juncs, FOUT_inf)
+    get_nagnags(juncs, "+", FOUT_juncs, FOUT_inf)
 
     
 
