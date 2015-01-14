@@ -20,15 +20,14 @@ if __name__=="__main__":
     parser.add_argument("--fn_output_gff")
     parser.add_argument("--fn_output_novel_junc_gff")
     parser.add_argument("--fn_output_bed")
-    parser.add_argument("--fn_output_juncs")
+    parser.add_argument("--fn_output_juncs_prefix")
     parser.add_argument("--track_desc")
     o = parser.parse_args()
     
     fa = FastaHack(o.fn_fasta)
     
     contigs = [contig for contig in fa.names]
-    #contigs = ["chr1"]
-    #contigs = ["chr2"]
+    contigs = ["chr1"]
     print contigs
     
     splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, contigs=contigs)
@@ -36,7 +35,7 @@ if __name__=="__main__":
     F_gff = open(o.fn_output_gff,'w')
     F_novel_gff = open(o.fn_output_novel_junc_gff,'w')
     F_bed = open(o.fn_output_bed,'w')
-    j_writer = JunctionWriter(o.fn_output_juncs)
+    j_writer = JunctionWriter(o.fn_output_juncs_prefix)
 
     F_bed.write("""track name=NAGNNAG description="%s NAGNNAGs" visibility=2\n"""%(o.track_desc))
     
