@@ -27,7 +27,8 @@ if __name__=="__main__":
     fa = FastaHack(o.fn_fasta)
     
     contigs = [contig for contig in fa.names]
-    #contigs = ["chr20"]
+    #contigs = ["chr1"]
+    #contigs = ["chr2"]
     print contigs
     
     splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, contigs=contigs)
