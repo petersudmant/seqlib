@@ -47,7 +47,9 @@ class JunctionWriter(object):
         fn_STAR="%s.tophat.juncs"%fn_prefix
         self.F_tophat = open(fn_prefix,'w')
         self.F_STAR = open(fn_STAR,'w')
-         
+        
+        self.junc_tups_output = {}
+
     def write(self, junc_tups):
 
         o_tophat_junc_lines = []
