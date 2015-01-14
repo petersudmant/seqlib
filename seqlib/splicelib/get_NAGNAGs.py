@@ -1,6 +1,6 @@
-
 """
-GET the NAGNAGs from a junction set
+GET the NAGNAGs from a junction set, 
+ASSUMES 0 based half open junction set coordinates
 """
 
 import argparse
@@ -8,7 +8,6 @@ import pandas as pd
 import pdb
 from sys import stderr
 import numpy as np
-
 
 def get_nagnags(all_juncs, strand, FOUT_juncs, FOUT_inf):
     
@@ -56,7 +55,6 @@ def get_nagnags(all_juncs, strand, FOUT_juncs, FOUT_inf):
         else: 
             prev_ss_5p = ss_5p
             prev_ss_3p = ss_3p
-
 
 if __name__=="__main__":
 
