@@ -31,6 +31,10 @@ def get_junction_entropy(contig, start, end, juncs, bam, readlen, entropy_min_ov
     for junc in juncs:
         junction_inf[tuple([junc[1],junc[2]])] = JunctionCounter(junc, readlen)
     
+    ## 
+    #for junc in juncs:
+    
+    #pdb.set_trace()
     #print junction_inf.keys()
     for read in bam.fetch(reference=contig, start = start, end = end):
         read_juncs = []
@@ -38,10 +42,12 @@ def get_junction_entropy(contig, start, end, juncs, bam, readlen, entropy_min_ov
         for i in xrange(1,len(read.blocks)):
             read_junc = tuple([read.blocks[i-1][1]-1, read.blocks[i][0]])
             curr_read_pos += read.blocks[i-1][1]-read.blocks[i-1][0]
+            #print read.blocks
             if read_junc in junction_inf: 
                 junction_inf[read_junc].add_read(curr_read_pos)
         del read
 
+    #pdb.set_trace()
     for junc, inf in junction_inf.iteritems():
         e = inf.calc_entropy(entropy_min_overhang)
         read_count_vect+=inf.read_counts
@@ -93,6 +99,7 @@ if __name__=="__main__":
     parser.add_argument("--fn_juncs")
     parser.add_argument("--fn_bam")
     parser.add_argument("--fn_output")
+    parser.add_argument("--contigs", default=None)
     parser.add_argument("--entropy_min_overhang", type=int, default=8)
     o = parser.parse_args()
     
@@ -103,8 +110,11 @@ if __name__=="__main__":
     tbx_juncs = pysam.Tabixfile(o.fn_juncs) 
     bam = pysam.Samfile(o.fn_bam, 'rb')
     contigs = [contig for contig in fa.names]
-    #contigs = ["chr4"]
-    #contigs = ['chrUn.004.790']
+
+    if o.contigs:
+        inc_contigs = o.contigs.split(":")
+        contigs = inc_contigs
+
     junc_cluster_trees, juncs_by_id = get_cluster_trees(tbx_juncs, contigs)
     """
     Vectors are readlen -1 because you need at least one base overlapping the
@@ -122,6 +132,7 @@ if __name__=="__main__":
             for start, end, junction_ids in junc_clusters.getregions():
                 junction_clusts_assessed += 1 
                 #print start, end, junction_ids, [juncs_by_id[i] for i in junction_ids]
+                #if not (start<=75195222 and end>=75195222): continue
                 juncs = [juncs_by_id[i] for i in junction_ids]
                 total_read_count_vect += get_junction_entropy(contig, start, end, juncs, bam, readlen, o.entropy_min_overhang, FOUT)
             #print "time for {strand} {contig} {t}".format(contig=contig, 
@@ -137,4 +148,3 @@ if __name__=="__main__":
     for i in xrange(len(total_read_count_vect)):
         FOUT_pileup.write("{pos}\t{count}\n".format(pos=i,count=total_read_count_vect[i]))
         
-
