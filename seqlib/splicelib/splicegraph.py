@@ -128,29 +128,18 @@ class SpliceGraph(object):
                     #OK, now ID the chunks that fit the bill!, ie, ss- < n bases -ss
 
 
-    def get_NAGNAGs(self, seq, F_gff, F_novel_gff, F_bed, junc_writer, n=33):
+    def get_NAGNAGs(self, seq, F_gff, F_novel_gff, F_bed, junc_writer, n=60):
         """
         define NAGNAG
         SD SA1,SA2 where SA1 and SA2 are within n bp of each other
-        
-        assuming common shortest here in all cases
-
-        TO DO! output ONLY annotated NAGAGs...easy
         """
         
-        #FWD
-        """
-        get all NAGNAGs on FWD strand
-        """
-
         for strand_d, _5p_3p_ss in { "FWD" : self.F_5p_3p_ss, "REV" : self.R_5p_3p_ss }.iteritems():
             for ss_5p, ss_3p_list in _5p_3p_ss.iteritems():
                 annotated_ss_3p = np.sort(np.array(ss_3p_list))
 
                 max_ss_3p = annotated_ss_3p[-1]
                 min_ss_3p = annotated_ss_3p[0]
-                #if ss_5p <= 75195223 and ss_5p>=75195218:
-                #    pdb.set_trace()
                 
                 if strand_d == "FWD":
                     annot_3p_ss = max_ss_3p
@@ -160,6 +149,9 @@ class SpliceGraph(object):
                 ds_exon = self.get_common_shortest_exon(annot_3p_ss, "3'", strand_d)
                 us_exon = self.get_common_shortest_exon(ss_5p, "5'", strand_d)
                 
+                """
+                GET GENE INFO
+                """
                 if strand_d == "FWD":
                     us_gene_inf = self.F_5p_to_gene_info[ss_5p]
                     ds_gene_inf = self.F_3p_to_gene_info[annot_3p_ss]
@@ -173,31 +165,35 @@ class SpliceGraph(object):
             
                 """
                 k is the number of bp up/down of the annotated 
-                3p ss to search for now ones
+                3p ss to search for now ones, ie, don't search past 
+                annotated 5' splice site!
                 """
                 
                 k = min(n, abs(annot_3p_ss-ss_5p))
                 ss_seq = strand_d == "FWD" and "AG" or "CT"
                 if strand_d == "FWD":
-                    seq_s, seq_e = annot_3p_ss-k, annot_3p_ss-2
+                    #seq_s, seq_e = annot_3p_ss-k, annot_3p_ss-2
+                    seq_s, seq_e = annot_3p_ss-k, min(annot_3p_ss+k+2, ds_exon[1]-1)
                 else:
-                    seq_s, seq_e = annot_3p_ss+2, annot_3p_ss+k
+                    #seq_s, seq_e = annot_3p_ss+2, annot_3p_ss+k
+                    seq_s, seq_e = max(ds_exon[0]+1, annot_3p_ss-k), annot_3p_ss+k
                 """
                 offset by a 2 if in fwd dir as you want exon 
                 EXON start, not the, position of the ss
                 for rev, the position is fine already
-                    REALLY????
                 """
                 delta = strand_d == "FWD" and 2 or 0 
-                
                 alt_3p_ss = np.array([m.start()+seq_s+delta for m in re.finditer(ss_seq, seq[seq_s:seq_e].upper())])
 
                 for ss_3p in alt_3p_ss:
+                    if ss_3p == annot_3p_ss: 
+                        continue
+
                     if ss_3p in annotated_ss_3p: 
                         source = "NAGNNAG_annotated"
                     else:
                         source = "NAGNNAG"
-                     
+                    
                     exon_paths = {"A":[0,1], "B":[0,2]}
                     NAG_exon = strand_d == "FWD" and [ss_3p, ds_exon[1]] or [ds_exon[0], ss_3p]
                     EXONS  = [us_exon, NAG_exon, ds_exon]
@@ -207,8 +203,7 @@ class SpliceGraph(object):
                     G_START = min(us_exon[0], ds_exon[0])
                     G_END = max(us_exon[1], ds_exon[1])
                     STRAND = strand_d == "FWD" and 1 or -1
-                    #if ss_3p==75195356:
-                    #    pdb.set_trace()
+                    
                     nagNnag_T = Transcript(contig = self.contig, 
                                            feature_ID = FEATURE_ID,
                                            exons = EXONS, 
