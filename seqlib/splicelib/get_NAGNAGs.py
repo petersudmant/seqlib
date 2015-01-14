@@ -1,3 +1,8 @@
+
+"""
+GET the NAGNAGs from a junction set
+"""
+
 import argparse
 import pandas as pd
 import pdb
@@ -59,6 +64,7 @@ if __name__=="__main__":
     parser.add_argument("--fn_out_juncs")
     parser.add_argument("--fn_out_info")
     parser.add_argument("--fn_input_juncs")
+    parser.add_argument("--contig", default=None)
 
     o = parser.parse_args()
 
@@ -72,6 +78,10 @@ if __name__=="__main__":
     FOUT_juncs = open(o.fn_out_juncs,'w') 
     FOUT_inf = open(o.fn_out_info,'w') 
     FOUT_inf.write("contig\tss_5p\tss_3p_1\tss_3p_2\tstrand\tsize\n")
+
+    if o.contig:
+        juncs = juncs[juncs["contig"]==o.contig]
+        
     get_nagnags(juncs, "-", FOUT_juncs, FOUT_inf)
     get_nagnags(juncs, "+", FOUT_juncs, FOUT_inf)
 
