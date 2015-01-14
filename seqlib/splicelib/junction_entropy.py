@@ -131,19 +131,15 @@ if __name__=="__main__":
             t=time.time()
             for start, end, junction_ids in junc_clusters.getregions():
                 junction_clusts_assessed += 1 
-                #print start, end, junction_ids, [juncs_by_id[i] for i in junction_ids]
-                #if not (start<=75195222 and end>=75195222): continue
                 juncs = [juncs_by_id[i] for i in junction_ids]
-                total_read_count_vect += get_junction_entropy(contig, start, end, juncs, bam, readlen, o.entropy_min_overhang, FOUT)
-            #print "time for {strand} {contig} {t}".format(contig=contig, 
-            #                                             strand = strand,
-            #                                             t=time.time()-t)
-            #print total_read_count_vect
-            #if junction_clusts_assessed>100: 
-            #    h = hpy()
-            #    print h.heap()
-            #    junction_clusts_assessed = 0
-            #    pdb.set_trace()
+                total_read_count_vect += get_junction_entropy(contig, 
+                                                              start, 
+                                                              end, 
+                                                              juncs, 
+                                                              bam, 
+                                                              readlen, 
+                                                              o.entropy_min_overhang, 
+                                                              FOUT)
     FOUT_pileup.write("position\tread_count\n")
     for i in xrange(len(total_read_count_vect)):
         FOUT_pileup.write("{pos}\t{count}\n".format(pos=i,count=total_read_count_vect[i]))
