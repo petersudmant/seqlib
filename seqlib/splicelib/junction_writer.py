@@ -44,8 +44,8 @@ class JunctionWriter(object):
     def __init__(self, fn_prefix):
         
         fn_tophat="%s.tophat.juncs"%fn_prefix
-        fn_STAR="%s.tophat.juncs"%fn_prefix
-        self.F_tophat = open(fn_prefix,'w')
+        fn_STAR="%s.STAR.juncs"%fn_prefix
+        self.F_tophat = open(fn_tophat,'w')
         self.F_STAR = open(fn_STAR,'w')
         
         self.junc_tups_output = {}
