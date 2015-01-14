@@ -72,7 +72,7 @@ if __name__=="__main__":
     all_ents = T.values[:,e_cols]
     all_overhangs = T.values[:,overhang_cols]
 
-    Tout.to_csv(o.fn_out, sep="\t", index=False)
+    T.to_csv(o.fn_out, sep="\t", index=False)
     
     T_filtered = T[(np.sum(all_ents>=o.min_entropy,1)>=1)]
     T_filtered.to_csv(o.fn_filtered_juncs, 
