@@ -149,6 +149,8 @@ class SpliceGraph(object):
 
                 max_ss_3p = annotated_ss_3p[-1]
                 min_ss_3p = annotated_ss_3p[0]
+                #if ss_5p <= 75195223 and ss_5p>=75195218:
+                #    pdb.set_trace()
                 
                 if strand_d == "FWD":
                     annot_3p_ss = max_ss_3p
@@ -184,11 +186,12 @@ class SpliceGraph(object):
                 offset by a 2 if in fwd dir as you want exon 
                 EXON start, not the, position of the ss
                 for rev, the position is fine already
+                    REALLY????
                 """
                 delta = strand_d == "FWD" and 2 or 0 
                 
                 alt_3p_ss = np.array([m.start()+seq_s+delta for m in re.finditer(ss_seq, seq[seq_s:seq_e].upper())])
-            
+
                 for ss_3p in alt_3p_ss:
                     if ss_3p in annotated_ss_3p: 
                         source = "NAGNNAG_annotated"
@@ -204,7 +207,8 @@ class SpliceGraph(object):
                     G_START = min(us_exon[0], ds_exon[0])
                     G_END = max(us_exon[1], ds_exon[1])
                     STRAND = strand_d == "FWD" and 1 or -1
-
+                    #if ss_3p==75195356:
+                    #    pdb.set_trace()
                     nagNnag_T = Transcript(contig = self.contig, 
                                            feature_ID = FEATURE_ID,
                                            exons = EXONS, 
