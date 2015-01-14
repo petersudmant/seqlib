@@ -22,12 +22,13 @@ if __name__=="__main__":
     parser.add_argument("--fn_output_bed")
     parser.add_argument("--fn_output_juncs_prefix")
     parser.add_argument("--track_desc")
+    parser.add_argument("--max_alt_exon_len", default=60)
     o = parser.parse_args()
     
     fa = FastaHack(o.fn_fasta)
     
     contigs = [contig for contig in fa.names]
-    contigs = ["chr1"]
+    #contigs = ["chr1"]
     print contigs
     
     splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, contigs=contigs)
@@ -42,6 +43,6 @@ if __name__=="__main__":
     for contig, splice_graph in splice_graphs_by_contig.iteritems():
         seq = fa.get_sequence(contig)
         splice_graph.enumerate_splice_junctions(seq)
-        splice_graph.get_NAGNAGs(seq, F_gff, F_novel_gff, F_bed, j_writer)
+        splice_graph.get_NAGNAGs(seq, F_gff, F_novel_gff, F_bed, j_writer, n=o.max_alt_exon_len)
     
 
