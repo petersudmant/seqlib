@@ -127,8 +127,6 @@ class SpliceGraph(object):
 
                     #OK, now ID the chunks that fit the bill!, ie, ss- < n bases -ss
 
-
-
     def get_5p_micro_exon(self, seq, F_gff, F_novel_gff, F_bed, junc_writer, micro_exon_dir, n=60):
         get_5p_3p_alt_exon(self, seq, F_gff, F_novel_gff, F_bed, junc_writer, get_5p=True, n=n)
     
@@ -139,7 +137,6 @@ class SpliceGraph(object):
         """
         get all putative alternative 5'/3' alternative exons 
         """
-        
         assert get_5p != get_3p, "EITHER get_5p or get_3p (5' or 3') must be passed"
 
         if get_3p:
@@ -209,9 +206,11 @@ class SpliceGraph(object):
                         else:
                             seq_s, seq_e = max(min_alt, ds_exon[0]), min(max_alt, us_exon[0]-2)
                             delta=0
-                    
+                    """
+                    THIS IS RUNNING MULTIPLE TIMES MORE THANT IT SHOULD REALLY... 
+                    """
                     alt_ss_list = np.array([m.start()+seq_s+delta for m in re.finditer(ss_seq, seq[seq_s:seq_e].upper())])
-                    #############
+
                     for alt_ss in alt_ss_list:
                         if alt_ss == alt_annot_5_or_3: 
                             continue
