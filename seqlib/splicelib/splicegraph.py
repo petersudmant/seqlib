@@ -84,48 +84,128 @@ class SpliceGraph(object):
                 return tuple([max(self.R_exon_e_s[ss]), ss])
     
     
+    def get_gene_info(strand_d, ss_3p, ss_5p):
 
-    def get_micro_exon(self, seq, F_gff, F_bed, n=33):
-        """
-        define micro_exon
+        if strand_d == "FWD":
+            us_gene_inf = self.F_5p_to_gene_info[ss_5p]
+            ds_gene_inf = self.F_3p_to_gene_info[ss_3p]
+        else:
+            us_gene_inf = self.R_5p_to_gene_info[ss_5p]
+            ds_gene_inf = self.R_3p_to_gene_info[ss_3p]
 
-        SD1, SA1, SD2, SA2 where 
-        SA1 and SA2 are within n bp of each other
+        gene_inf = []
+        for inf in us_gene_inf+ds_gene_inf:
+            if not inf in gene_inf: 
+                gene_inf.append(inf)
+        return gene_inf
 
-        again, assuming common shortest exon here
-        """
-
+    def get_skipped_alt_exon(self, seq, F_gff, F_novel_gff, F_bed, junc_writer, n=60):
         """
         get all 5' 3' ss pairs and search in-between for lil' guys
         """
-        for strand_d, _5p_3p_ss in { "FWD" : self.F_5p_3p_ss, "REV" : self.R_5p_3p_ss }.iteritems():
+
+        for strand_d, ss_juncs in { "FWD" : self.F_5p_3p_ss, "REV" : self.R_5p_3p_ss }.iteritems():
             
-            if strand_d == "FWD":
-                _5p_to_gene_inf = self.F_5p_to_gene_info
-                _3p_to_gene_inf = self.F_3p_to_gene_info
-            else:
-                _5p_to_gene_inf = self.R_5p_to_gene_info
-                _3p_to_gene_inf = self.R_3p_to_gene_info
-
-            for ss_5p, ss_3p_list in _5p_3p_ss.iteritems():
+            for annot_ss_5p, annot_ss_3p_list in ss_juncs.iteritems():
                 
-                us_exon = self.get_common_shortest_exon(ss_5p, strand_d, ss_type_5p=True)
-                us_gene_inf = _5p_to_gene_info[ss_5p]
+                discovered_alt_transcript_hashes = {}
+
+                for annot_ss_3p in annot_ss_3p_list: 
+                    
+                    ds_exon = self.get_common_shortest_exon(annot_ss_3p, strand_d, ss_type_3p=True)
+                    us_exon = self.get_common_shortest_exon(annot_ss_5p, strand_d, ss_type_5p=True)
                 
-                for ss_3p in ss_3p_list:
-                    ds_exon = self.get_common_shortest_exon(ss_3p,  strand_d, ss_type_3p=True)
-                    ds_gene_inf = _3p_to_gene_info[ss_3p]
-                    
-                    ss_5p_seq = strand_d == "FWD" and "GT" or "AC"
-                    ss_3p_seq = strand_d == "FWD" and "AG" or "CT"
-                    
-                    s,e = sorted([ss_5p, ss_3p])
-                    s,e = s+2,e-2
+                    """
+                    GET GENE INFO
+                    """
+                    gene_info = get_gene_info(strand_d, annot_ss_3p, annot_ss_5p)
+                
+                    if get_3p:
+                        ss_seq = strand_d == "FWD" and "AG" or "CT"
+                    else:
+                        ss_seq = strand_d == "FWD" and "GT" or "AC"
+                            
+                    min_alt, max_alt = alt_annot_5_or_3-n, alt_annot_5_or_3+n
+                    """
+                    delta offsets are to adjust the identified splice donor/acceptor to 
+                    the start/end
+                    """
+                    if strand_d == "FWD":
+                        if get_5p:
+                            seq_s, seq_e = max(min_alt, us_exon[0]), min(max_alt, ds_exon[0]-2)
+                            delta=0
+                        else: 
+                            seq_s, seq_e = max(min_alt, us_exon[1]+2), min(max_alt, ds_exon[1])
+                            delta=2
+                    else:
+                        if get_5p:
+                            seq_s, seq_e = max(min_alt, ds_exon[1]+2), min(max_alt, us_exon[1])
+                            delta=2
+                        else:
+                            seq_s, seq_e = max(min_alt, ds_exon[0]), min(max_alt, us_exon[0]-2)
+                            delta=0
+                    """
+                    THIS IS RUNNING MULTIPLE TIMES MORE THANT IT SHOULD REALLY... 
+                    """
+                    alt_ss_list = np.array([m.start()+seq_s+delta for m in re.finditer(ss_seq, seq[seq_s:seq_e].upper())])
 
-                    alt_5p_ss = np.array([m.start()+s for m in re.finditer(ss_5p_seq, seq[s:e].upper())])
-                    alt_3p_ss = np.array([m.start()+s for m in re.finditer(ss_3p_seq, seq[s:e].upper())])
+                    for alt_ss in alt_ss_list:
+                        if alt_ss == alt_annot_5_or_3: 
+                            continue
 
-                    #OK, now ID the chunks that fit the bill!, ie, ss- < n bases -ss
+                        if alt_ss in alt_annot_ss_5_or_3_list: 
+                            source = "annotated"
+                        else:
+                            source = "novel"
+                        
+                        if get_3p:
+                            exon_paths = {"A":[0,1], "B":[0,2]}
+                        else:
+                            exon_paths = {"A":[0,2], "B":[1,2]}
+
+                        if strand_d=="FWD" and get_3p:
+                            alt_exon=[alt_ss, ds_exon[1]]
+                        elif strand_d=="REV" and get_3p:
+                            alt_exon=[ds_exon[0], alt_ss]
+                        elif strand_d=="FWD" and get_5p:
+                            alt_exon=[us_exon[0], alt_ss]
+                        elif strand_d=="REV" and get_5p:
+                            alt_exon=[alt_ss, us_exon[1]]
+                        
+                        #no, 0 length exons
+                        if alt_exon[1]==alt_exon[0]: continue
+
+                        EXONS  = [us_exon, alt_exon, ds_exon]
+                        FEATURE_ID = "%s_%s"%(source, "_".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS]))
+                        GENE_NAME = "%s_%s"%(source, ",".join(["%s"%gi['gene_name'] for gi in gene_inf]))
+                        GENE_ID = "%s_%s"%(source,"_".join(["%s"%gi['gene_ID'] for gi in gene_inf]))
+                        G_START = min(us_exon[0], ds_exon[0])
+                        G_END = max(us_exon[1], ds_exon[1])
+                        STRAND = strand_d == "FWD" and 1 or -1
+                        
+                        alt_T = Transcript(contig = self.contig, 
+                                           feature_ID = FEATURE_ID,
+                                           exons = EXONS, 
+                                           gene_name = GENE_NAME,
+                                           gene_ID = GENE_ID,
+                                           g_start = G_START,
+                                           g_end = G_END,
+                                           strand = STRAND)
+
+                        T_hash = alt_T.get_tuple_hash()
+                        if not T_hash in discovered_alt_transcript_hashes:
+                            discovered_alt_transcript_hashes[T_hash] = 1
+
+                            gff_s = alt_T.gff_string(exon_paths, source)
+                            gff_novel_s = alt_T.gff_string({"A":[0,1]}, source)
+                            bed_s = alt_T.bed_string(exon_paths, source, True)
+                            junc_tups = alt_T.junc_tuples(exon_paths, source, True)
+                            
+                            F_gff.write(gff_s)
+                            F_novel_gff.write(gff_novel_s)
+                            F_bed.write(bed_s)
+                            junc_writer.write(junc_tups)
+
 
     def get_5p_micro_exon(self, seq, F_gff, F_novel_gff, F_bed, junc_writer, micro_exon_dir, n=60):
         get_5p_3p_alt_exon(self, seq, F_gff, F_novel_gff, F_bed, junc_writer, get_5p=True, n=n)
@@ -168,20 +248,8 @@ class SpliceGraph(object):
                     ds_exon = self.get_common_shortest_exon(curr_3p, strand_d, ss_type_3p=True)
                     us_exon = self.get_common_shortest_exon(curr_5p, strand_d, ss_type_5p=True)
                 
-                    """
-                    GET GENE INFO
-                    """
-                    if strand_d == "FWD":
-                        us_gene_inf = self.F_5p_to_gene_info[curr_5p]
-                        ds_gene_inf = self.F_3p_to_gene_info[curr_3p]
-                    else:
-                        us_gene_inf = self.R_5p_to_gene_info[curr_5p]
-                        ds_gene_inf = self.R_3p_to_gene_info[curr_3p]
+                    gene_info = get_gene_info(strand_d, curr_3p,curr_5p)
 
-                    gene_inf = []
-                    for inf in us_gene_inf+ds_gene_inf:
-                        if not inf in gene_inf: gene_inf.append(inf)
-                
                     if get_3p:
                         ss_seq = strand_d == "FWD" and "AG" or "CT"
                     else:
