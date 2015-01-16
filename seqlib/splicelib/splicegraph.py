@@ -219,14 +219,17 @@ class SpliceGraph(object):
                             source = "novel"
                         
                         exon_paths = {"A":[0,1], "B":[0,2]}
-                        if "FWD" and get_3p:
+                        if strand_d=="FWD" and get_3p:
                             alt_exon=[alt_ss, ds_exon[1]]
-                        elif "REV" and get_3p:
+                        elif strand_d=="REV" and get_3p:
                             alt_exon=[ds_exon[0], alt_ss]
-                        elif "FWD" and get_5p:
+                        elif strand_d=="FWD" and get_5p:
                             alt_exon=[us_exon[0], alt_ss]
-                        elif "REV" and get_5p:
+                        elif strand_d=="REV" and get_5p:
                             alt_exon=[alt_ss, us_exon[1]]
+                        
+                        #no, 0 length exons
+                        if alt_exon[1]==alt_exon[0]: continue
 
                         EXONS  = [us_exon, alt_exon, ds_exon]
                         FEATURE_ID = "_".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS])
