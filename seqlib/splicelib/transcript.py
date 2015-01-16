@@ -74,15 +74,15 @@ class Transcript:
 
 
 
-    def bed_string(self, exon_paths, source, UCSC=False):
+    def bed_string(self, exon_paths, source, UCSC=False, annot_RGB="000,204,102", novel_RGB="64,64,64"):
         bed_lines = []
+        RBG = source=="annotated" and annot_RGB or novel_RGB
         pattern = "{contig}\t{start}\t{end}\t{name}\t0\t{strand}\t{start}\t{end}\t{RGB}\t{n_exons}\t{exon_sizes}\t{exon_starts}"
         strand = self.strand == 1 and "+" or "-"
         
         formatted_contig = self.contig
         if UCSC and "chr" not in self.contig:
             formatted_contig  = "chr%s"%self.contig
-
         for curr_ID, e_path in exon_paths.iteritems():
             curr_exons = [self.exons[i] for i in e_path]
             if strand == "-": curr_exons = curr_exons[::-1] 
@@ -92,7 +92,7 @@ class Transcript:
                                             end = self.g_end,
                                             name="%s,%s"%(self.feature_ID, curr_ID),
                                             strand = strand,
-                                            RGB = "0,200,100",
+                                            RGB = RGB,
                                             n_exons = len(curr_exons),
                                             exon_sizes = ",".join(["%d"%(e[1]-e[0]) for e in curr_exons]),
                                             exon_starts = ",".join(["%d"%(e[0]-min_p) for e in curr_exons]) ))
