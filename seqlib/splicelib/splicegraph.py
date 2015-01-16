@@ -191,22 +191,25 @@ class SpliceGraph(object):
                         ss_seq = strand_d == "FWD" and "GT" or "AC"
                             
                     min_alt, max_alt = alt_annot_5_or_3-n, alt_annot_5_or_3+n
-                    
+                    """
+                    delta offsets are to adjust the identified splice donor/acceptor to 
+                    the start/end
+                    """
                     if strand_d == "FWD":
                         if get_5p:
                             seq_s, seq_e = max(min_alt, us_exon[0]), min(max_alt, ds_exon[0]-2)
+                            delta=0
                         else: 
                             seq_s, seq_e = max(min_alt, us_exon[1]+2), min(max_alt, ds_exon[1])
+                            delta=2
                     else:
                         if get_5p:
                             seq_s, seq_e = max(min_alt, ds_exon[1]+2), min(max_alt, us_exon[1])
+                            delta=2
                         else:
                             seq_s, seq_e = max(min_alt, ds_exon[0]), min(max_alt, us_exon[0]-2)
-                    """
-                    offset by a 2 if in fwd dir as you want exon start not
-                    the, position of the ss, for rev, the position is fine already
-                    """
-                    delta = strand_d == "FWD" and 2 or 0 
+                            delta=0
+                    
                     alt_ss_list = np.array([m.start()+seq_s+delta for m in re.finditer(ss_seq, seq[seq_s:seq_e].upper())])
                     #############
                     for alt_ss in alt_ss_list:
@@ -218,7 +221,11 @@ class SpliceGraph(object):
                         else:
                             source = "novel"
                         
-                        exon_paths = {"A":[0,1], "B":[0,2]}
+                        if get_3p:
+                            exon_paths = {"A":[0,1], "B":[0,2]}
+                        else:
+                            exon_paths = {"A":[0,2], "B":[1,2]}
+
                         if strand_d=="FWD" and get_3p:
                             alt_exon=[alt_ss, ds_exon[1]]
                         elif strand_d=="REV" and get_3p:
@@ -232,9 +239,9 @@ class SpliceGraph(object):
                         if alt_exon[1]==alt_exon[0]: continue
 
                         EXONS  = [us_exon, alt_exon, ds_exon]
-                        FEATURE_ID = "_".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS])
-                        GENE_NAME = ",".join(["%s"%gi['gene_name'] for gi in gene_inf])
-                        GENE_ID = "_".join(["%s"%gi['gene_ID'] for gi in gene_inf])
+                        FEATURE_ID = "%s_%s"%(source, "_".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS]))
+                        GENE_NAME = "%s_%s"%(source, ",".join(["%s"%gi['gene_name'] for gi in gene_inf]))
+                        GENE_ID = "%s_%s"%(source,"_".join(["%s"%gi['gene_ID'] for gi in gene_inf]))
                         G_START = min(us_exon[0], ds_exon[0])
                         G_END = max(us_exon[1], ds_exon[1])
                         STRAND = strand_d == "FWD" and 1 or -1
