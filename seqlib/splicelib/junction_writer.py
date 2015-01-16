@@ -67,6 +67,8 @@ class JunctionWriter(object):
                                                         right= tup[2],
                                                         strand = tup[3]))
                 self.junc_tups_output[tup] = True
-        self.F_tophat.write("%s\n"%("\n".join(o_tophat_junc_lines)))
-        self.F_STAR.write("%s\n"%("\n".join(o_STAR_junc_lines)))
+        
+        if len(o_tophat_junc_lines)>0:
+            self.F_tophat.write("%s\n"%("\n".join(o_tophat_junc_lines)))
+            self.F_STAR.write("%s\n"%("\n".join(o_STAR_junc_lines)))
 
