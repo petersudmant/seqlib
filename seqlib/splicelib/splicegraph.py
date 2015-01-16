@@ -156,7 +156,11 @@ class SpliceGraph(object):
             and the other to be called alt
             """
             for fixed_ss_3_or_5, alt_annot_ss_5_or_3_list in ss_juncs.iteritems():
+                
+                discovered_alt_transcript_hashes = {}
+
                 for alt_annot_5_or_3 in alt_annot_ss_5_or_3_list: 
+                    
                     if get_3p:
                         curr_3p = alt_annot_5_or_3
                         curr_5p = fixed_ss_3_or_5
@@ -164,101 +168,96 @@ class SpliceGraph(object):
                         curr_3p = fixed_ss_3_or_5   
                         curr_5p = alt_annot_5_or_3
 
-                ds_exon = self.get_common_shortest_exon(curr_3p, strand_d, ss_type_3p=True)
-                us_exon = self.get_common_shortest_exon(curr_5p, strand_d, ss_type_5p=True)
+                    ds_exon = self.get_common_shortest_exon(curr_3p, strand_d, ss_type_3p=True)
+                    us_exon = self.get_common_shortest_exon(curr_5p, strand_d, ss_type_5p=True)
                 
-                """
-                GET GENE INFO
-                """
-                if strand_d == "FWD":
-                    us_gene_inf = self.F_5p_to_gene_info[curr_5p]
-                    ds_gene_inf = self.F_3p_to_gene_info[curr_3p]
-                else:
-                    us_gene_inf = self.R_5p_to_gene_info[curr_5p]
-                    ds_gene_inf = self.R_3p_to_gene_info[curr_3p]
+                    """
+                    GET GENE INFO
+                    """
+                    if strand_d == "FWD":
+                        us_gene_inf = self.F_5p_to_gene_info[curr_5p]
+                        ds_gene_inf = self.F_3p_to_gene_info[curr_3p]
+                    else:
+                        us_gene_inf = self.R_5p_to_gene_info[curr_5p]
+                        ds_gene_inf = self.R_3p_to_gene_info[curr_3p]
 
-                gene_inf = []
-                for inf in us_gene_inf+ds_gene_inf:
-                    if not inf in gene_inf: gene_inf.append(inf)
-            
-                """
-                k is the number of bp up/down of the annotated 
-                5p/3p ss to search for now ones, ie, don't search past 
-                annotated OTHER 5' splice site!
-                """
+                    gene_inf = []
+                    for inf in us_gene_inf+ds_gene_inf:
+                        if not inf in gene_inf: gene_inf.append(inf)
                 
-                if get_3p:
-                    ss_seq = strand_d == "FWD" and "AG" or "CT"
-                else:
-                    ss_seq = strand_d == "FWD" and "GT" or "AC"
+                    if get_3p:
+                        ss_seq = strand_d == "FWD" and "AG" or "CT"
+                    else:
+                        ss_seq = strand_d == "FWD" and "GT" or "AC"
+                            
+                    min_alt, max_alt = alt_annot_5_or_3-n, alt_annot_5_or_3+n
+                    
+                    if strand_d == "FWD":
+                        if get_5p:
+                            seq_s, seq_e = max(min_alt, us_exon[0]), min(max_alt, ds_exon[0]-2)
+                        else: 
+                            seq_s, seq_e = max(min_alt, us_exon[1]+2), min(max_alt, ds_exon[1])
+                    else:
+                        if get_5p:
+                            seq_s, seq_e = max(min_alt, ds_exon[1]+2), min(max_alt, us_exon[1])
+                        else:
+                            seq_s, seq_e = max(min_alt, ds_exon[0]), min(max_alt, us_exon[0]-2)
+                    """
+                    offset by a 2 if in fwd dir as you want exon start not
+                    the, position of the ss, for rev, the position is fine already
+                    """
+                    delta = strand_d == "FWD" and 2 or 0 
+                    alt_ss_list = np.array([m.start()+seq_s+delta for m in re.finditer(ss_seq, seq[seq_s:seq_e].upper())])
+                    #############
+                    for alt_ss in alt_ss_list:
+                        if alt_ss == alt_annot_5_or_3: 
+                            continue
+
+                        if alt_ss in alt_annot_ss_5_or_3_list: 
+                            source = "annotated"
+                        else:
+                            source = "novel"
                         
-                max_k = min(n, abs(curr_5p-curr_3p))
-            
-                min_alt, max_alt = alt_annot_5_or_3-k, alt_annot_5_or_3+k
-                if strand_d == "FWD":
-                    #seq_s, seq_e = annot_3p_ss-k, annot_3p_ss-2
-                    if get_5p:
-                        seq_s, seq_e = max(min_alt, us_exon[0]+1), min(max_alt, ds_exon[0])
-                    else: 
-                        seq_s, seq_e = max(min_alt, us_exon[1]+1), min(max_alt, ds_exon[1])
-                else:
-                    if get_5p:
-                        seq_s, seq_e = max(min_alt, ds_exon[1]+1), min(max_alt, us_exon[1])
-                    else:
-                        seq_s, seq_e = max(min_alt, ss_exon[0]+1), min(max_alt, us_exon[0])
-                """
-                offset by a 2 if in fwd dir as you want exon 
-                EXON start, not the, position of the ss
-                for rev, the position is fine already
-                """
-                delta = strand_d == "FWD" and 2 or 0 
-                alt_ss_list = np.array([m.start()+seq_s+delta for m in re.finditer(ss_seq, seq[seq_s:seq_e].upper())])
-                #############
-                for alt_ss in alt_ss_list:
-                    if alt_ss == alt_annot_5_or_3: 
-                        continue
+                        exon_paths = {"A":[0,1], "B":[0,2]}
+                        if "FWD" and get_3p:
+                            alt_exon=[alt_ss, ds_exon[1]]
+                        elif "REV" and get_3p:
+                            alt_exon=[ds_exon[0], alt_ss]
+                        elif "FWD" and get_5p:
+                            alt_exon=[us_exon[0], alt_ss]
+                        elif "REV" and get_5p:
+                            alt_exon=[alt_ss, us_exon[1]]
 
-                    if alt_ss in alt_annot_ss_5_or_3_list: 
-                        source = "annotated"
-                    else:
-                        source = "novel"
-                    
-                    exon_paths = {"A":[0,1], "B":[0,2]}
-                    if "FWD" and get_3p:
-                        alt_exon=[alt_ss, ds_exon[1]]
-                    elif "REV" and get_3p:
-                        alt_exon=[ds_exon[0], alt_ss]
-                    elif "FWD" and get_5p:
-                        alt_exon=[us_exon[0], alt_ss]
-                    elif "REV" and get_5p:
-                        alt_exon=[alt_ss, us_exon[1]]
+                        EXONS  = [us_exon, alt_exon, ds_exon]
+                        FEATURE_ID = "_".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS])
+                        GENE_NAME = ",".join(["%s"%gi['gene_name'] for gi in gene_inf])
+                        GENE_ID = "_".join(["%s"%gi['gene_ID'] for gi in gene_inf])
+                        G_START = min(us_exon[0], ds_exon[0])
+                        G_END = max(us_exon[1], ds_exon[1])
+                        STRAND = strand_d == "FWD" and 1 or -1
+                        
+                        alt_T = Transcript(contig = self.contig, 
+                                           feature_ID = FEATURE_ID,
+                                           exons = EXONS, 
+                                           gene_name = GENE_NAME,
+                                           gene_ID = GENE_ID,
+                                           g_start = G_START,
+                                           g_end = G_END,
+                                           strand = STRAND)
 
-                    EXONS  = [us_exon, alt_exon, ds_exon]
-                    FEATURE_ID = "_".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS])
-                    GENE_NAME = ",".join(["%s"%gi['gene_name'] for gi in gene_inf])
-                    GENE_ID = "_".join(["%s"%gi['gene_ID'] for gi in gene_inf])
-                    G_START = min(us_exon[0], ds_exon[0])
-                    G_END = max(us_exon[1], ds_exon[1])
-                    STRAND = strand_d == "FWD" and 1 or -1
-                    
-                    alt_T = Transcript(contig = self.contig, 
-                                       feature_ID = FEATURE_ID,
-                                       exons = EXONS, 
-                                       gene_name = GENE_NAME,
-                                       gene_ID = GENE_ID,
-                                       g_start = G_START,
-                                       g_end = G_END,
-                                       strand = STRAND)
+                        T_hash = alt_T.get_tuple_hash()
+                        if not T_hash in discovered_alt_transcript_hashes:
+                            discovered_alt_transcript_hashes[T_hash] = 1
 
-                    gff_s = alt_T.gff_string(exon_paths, source)
-                    gff_novel_s = alt_T.gff_string({"A":[0,1]}, source)
-
-                    bed_s = alt_T.bed_string(exon_paths, source, True)
-                    junc_tups = alt_T.junc_tuples(exon_paths, source, True)
-                    F_gff.write(gff_s)
-                    F_novel_gff.write(gff_novel_s)
-                    F_bed.write(bed_s)
-                    junc_writer.write(junc_tups)
+                            gff_s = alt_T.gff_string(exon_paths, source)
+                            gff_novel_s = alt_T.gff_string({"A":[0,1]}, source)
+                            bed_s = alt_T.bed_string(exon_paths, source, True)
+                            junc_tups = alt_T.junc_tuples(exon_paths, source, True)
+                            
+                            F_gff.write(gff_s)
+                            F_novel_gff.write(gff_novel_s)
+                            F_bed.write(bed_s)
+                            junc_writer.write(junc_tups)
 
 
     def __DEPRECATED__get_NAGNAGs(self, seq, F_gff, F_novel_gff, F_bed, junc_writer, n=60):
