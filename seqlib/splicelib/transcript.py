@@ -76,7 +76,7 @@ class Transcript:
 
     def bed_string(self, exon_paths, source, UCSC=False, annot_RGB="000,204,102", novel_RGB="64,64,64"):
         bed_lines = []
-        RBG = source=="annotated" and annot_RGB or novel_RGB
+        RGB = source=="annotated" and annot_RGB or novel_RGB
         pattern = "{contig}\t{start}\t{end}\t{name}\t0\t{strand}\t{start}\t{end}\t{RGB}\t{n_exons}\t{exon_sizes}\t{exon_starts}"
         strand = self.strand == 1 and "+" or "-"
         
