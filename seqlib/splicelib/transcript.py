@@ -12,6 +12,15 @@ class Transcript:
         self.exons = kwargs['exons']
         self.strand = kwargs['strand']
     
+    def get_tuple_hash(self):
+        """
+        a tuple describing a transcript uniquely to see if it's already been
+        output
+        """
+        exon_starts = [e[0] for e in self.exons]
+        exon_ends = [e[1] for e in self.exons]
+        return tuple(sorted(exons_starts+exon_ends))
+
     def print_out(self):
         print self.feature_ID
         print "\t", self.gene_name #important
