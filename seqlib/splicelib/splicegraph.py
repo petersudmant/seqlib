@@ -84,7 +84,7 @@ class SpliceGraph(object):
                 return tuple([max(self.R_exon_e_s[ss]), ss])
     
     
-    def get_gene_info(strand_d, ss_3p, ss_5p):
+    def get_gene_info(self, strand_d, ss_3p, ss_5p):
 
         if strand_d == "FWD":
             us_gene_inf = self.F_5p_to_gene_info[ss_5p]
@@ -118,83 +118,51 @@ class SpliceGraph(object):
                     """
                     GET GENE INFO
                     """
-                    gene_info = get_gene_info(strand_d, annot_ss_3p, annot_ss_5p)
+                    gene_inf = self.get_gene_info(strand_d, annot_ss_3p, annot_ss_5p)
                 
-                    if get_3p:
-                        ss_seq = strand_d == "FWD" and "AG" or "CT"
+                    if strand_d=="FWD":
+                        ss_donor_seq="GT"
+                        ss_acceptor_seq="AG"
+                        delta_donor=0
+                        delta_acceptor=2
                     else:
-                        ss_seq = strand_d == "FWD" and "GT" or "AC"
+                        ss_donor_seq="AC"
+                        ss_acceptor_seq="CT"
+                        delta_donor=2
+                        delta_acceptor=0
+                    
+                    seq_s, seq_e = sorted([annot_ss_3p, annot_ss_5p])
+
+                    donors = np.array([m.start()+seq_s+delta_donor for m in re.finditer(ss_donor_seq, seq[seq_s:seq_e].upper())])
+                    acceptors = np.array([m.start()+seq_s+delta_acceptor for m in re.finditer(ss_acceptor_seq, seq[seq_s:seq_e].upper())])
+                    for donor in donors:
+                        for acceptor in acceptors[np.absolute(acceptors-donor)<n]:
+                            source = ""
+                            alt_exon=sorted([acceptor, donor])
+                        
+                            if alt_exon[1]==alt_exon[0]: continue
                             
-                    min_alt, max_alt = alt_annot_5_or_3-n, alt_annot_5_or_3+n
-                    """
-                    delta offsets are to adjust the identified splice donor/acceptor to 
-                    the start/end
-                    """
-                    if strand_d == "FWD":
-                        if get_5p:
-                            seq_s, seq_e = max(min_alt, us_exon[0]), min(max_alt, ds_exon[0]-2)
-                            delta=0
-                        else: 
-                            seq_s, seq_e = max(min_alt, us_exon[1]+2), min(max_alt, ds_exon[1])
-                            delta=2
-                    else:
-                        if get_5p:
-                            seq_s, seq_e = max(min_alt, ds_exon[1]+2), min(max_alt, us_exon[1])
-                            delta=2
-                        else:
-                            seq_s, seq_e = max(min_alt, ds_exon[0]), min(max_alt, us_exon[0]-2)
-                            delta=0
-                    """
-                    THIS IS RUNNING MULTIPLE TIMES MORE THANT IT SHOULD REALLY... 
-                    """
-                    alt_ss_list = np.array([m.start()+seq_s+delta for m in re.finditer(ss_seq, seq[seq_s:seq_e].upper())])
+                            exon_paths = {"A":[0,2], "B":[0,1,2]}
 
-                    for alt_ss in alt_ss_list:
-                        if alt_ss == alt_annot_5_or_3: 
-                            continue
-
-                        if alt_ss in alt_annot_ss_5_or_3_list: 
-                            source = "annotated"
-                        else:
-                            source = "novel"
+                            EXONS  = [us_exon, alt_exon, ds_exon]
+                            FEATURE_ID = "%s_%s"%(source, "_".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS]))
+                            GENE_NAME = "%s_%s"%(source, ",".join(["%s"%gi['gene_name'] for gi in gene_inf]))
+                            GENE_ID = "%s_%s"%(source,"_".join(["%s"%gi['gene_ID'] for gi in gene_inf]))
+                            G_START = min(us_exon[0], ds_exon[0])
+                            G_END = max(us_exon[1], ds_exon[1])
+                            STRAND = strand_d == "FWD" and 1 or -1
                         
-                        if get_3p:
-                            exon_paths = {"A":[0,1], "B":[0,2]}
-                        else:
-                            exon_paths = {"A":[0,2], "B":[1,2]}
+                            alt_T = Transcript(contig = self.contig, 
+                                               feature_ID = FEATURE_ID,
+                                               exons = EXONS, 
+                                               gene_name = GENE_NAME,
+                                               gene_ID = GENE_ID,
+                                               g_start = G_START,
+                                               g_end = G_END,
+                                               strand = STRAND)
 
-                        if strand_d=="FWD" and get_3p:
-                            alt_exon=[alt_ss, ds_exon[1]]
-                        elif strand_d=="REV" and get_3p:
-                            alt_exon=[ds_exon[0], alt_ss]
-                        elif strand_d=="FWD" and get_5p:
-                            alt_exon=[us_exon[0], alt_ss]
-                        elif strand_d=="REV" and get_5p:
-                            alt_exon=[alt_ss, us_exon[1]]
-                        
-                        #no, 0 length exons
-                        if alt_exon[1]==alt_exon[0]: continue
-
-                        EXONS  = [us_exon, alt_exon, ds_exon]
-                        FEATURE_ID = "%s_%s"%(source, "_".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS]))
-                        GENE_NAME = "%s_%s"%(source, ",".join(["%s"%gi['gene_name'] for gi in gene_inf]))
-                        GENE_ID = "%s_%s"%(source,"_".join(["%s"%gi['gene_ID'] for gi in gene_inf]))
-                        G_START = min(us_exon[0], ds_exon[0])
-                        G_END = max(us_exon[1], ds_exon[1])
-                        STRAND = strand_d == "FWD" and 1 or -1
-                        
-                        alt_T = Transcript(contig = self.contig, 
-                                           feature_ID = FEATURE_ID,
-                                           exons = EXONS, 
-                                           gene_name = GENE_NAME,
-                                           gene_ID = GENE_ID,
-                                           g_start = G_START,
-                                           g_end = G_END,
-                                           strand = STRAND)
-
-                        T_hash = alt_T.get_tuple_hash()
-                        if not T_hash in discovered_alt_transcript_hashes:
-                            discovered_alt_transcript_hashes[T_hash] = 1
+                            #T_hash = alt_T.get_tuple_hash()
+                            #discovered_alt_transcript_hashes[T_hash] = 1
 
                             gff_s = alt_T.gff_string(exon_paths, source)
                             gff_novel_s = alt_T.gff_string({"A":[0,1]}, source)
@@ -248,7 +216,7 @@ class SpliceGraph(object):
                     ds_exon = self.get_common_shortest_exon(curr_3p, strand_d, ss_type_3p=True)
                     us_exon = self.get_common_shortest_exon(curr_5p, strand_d, ss_type_5p=True)
                 
-                    gene_info = get_gene_info(strand_d, curr_3p,curr_5p)
+                    gene_inf = self.get_gene_info(strand_d, curr_3p,curr_5p)
 
                     if get_3p:
                         ss_seq = strand_d == "FWD" and "AG" or "CT"

@@ -47,6 +47,7 @@ if __name__=="__main__":
     j_writer = JunctionWriter("{junction_dir}/{mx_type}".format(junction_dir=o.fn_output_juncs_dir,
                                                                  mx_type=mx_type))
 
+
     for contig, splice_graph in splice_graphs_by_contig.iteritems():
         seq = fa.get_sequence(contig)
         #splice_graph.enumerate_splice_junctions(seq)
@@ -61,6 +62,10 @@ if __name__=="__main__":
                                             get_5p=get_5p,
                                             get_3p=get_3p,
                                             n=o.max_alt_exon_len)
-        else:
-            print "NOT IMPLEMENTED"
-
+        elif mx_type == "skipped":
+            splice_graph.get_skipped_alt_exon(seq, 
+                                              F_gff, 
+                                              F_novel_gff, 
+                                              F_bed, 
+                                              j_writer, 
+                                              n=o.max_alt_exon_len)
