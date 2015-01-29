@@ -113,7 +113,7 @@ class SpliceGraph(object):
                 discovered_alt_transcript_hashes = {}
                 
                 t_complete+=1
-                if t_complete%10 ==0 :
+                if t_complete%100 ==0 :
                     print t_complete, "/", len(ss_juncs.keys())
 
                 for annot_ss_3p in annot_ss_3p_list: 
