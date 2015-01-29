@@ -23,11 +23,14 @@ if __name__=="__main__":
     parser.add_argument("--track_desc")
     parser.add_argument("--micro_exon_type", choices=['skipped','5p','3p'], required=True)
     parser.add_argument("--max_alt_exon_len", default=60, type=int)
+    parser.add_argument("--force_contig", default=None)
     o = parser.parse_args()
     
     fa = FastaHack(o.fn_fasta)
     
     contigs = [contig for contig in fa.names]
+    if o.force_contig:
+        contigs = [c for c in contigs if c==o.force_contig]
     print contigs
     
     splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, contigs=contigs)
