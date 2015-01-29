@@ -28,7 +28,6 @@ if __name__=="__main__":
     fa = FastaHack(o.fn_fasta)
     
     contigs = [contig for contig in fa.names]
-    contigs = ["chr2"]
     print contigs
     
     splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, contigs=contigs)
@@ -46,7 +45,6 @@ if __name__=="__main__":
 
     j_writer = JunctionWriter("{junction_dir}/{mx_type}".format(junction_dir=o.fn_output_juncs_dir,
                                                                  mx_type=mx_type))
-
 
     for contig, splice_graph in splice_graphs_by_contig.iteritems():
         seq = fa.get_sequence(contig)
