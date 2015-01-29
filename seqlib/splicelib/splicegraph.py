@@ -49,6 +49,8 @@ class SpliceGraph(object):
         self.R_5p_to_gene_info = kwargs["R_5p_to_gene_info"]
         self.R_3p_to_gene_info = kwargs["R_3p_to_gene_info"]
         
+        self.all_uniq_exons = kwargs["all_uniq_exons"]
+        
     def get_common_shortest_exon(self, ss, strand, ss_type_3p=False, ss_type_5p=False):
         """
         ss_type = 5' | 3'
@@ -105,10 +107,14 @@ class SpliceGraph(object):
         """
 
         for strand_d, ss_juncs in { "FWD" : self.F_5p_3p_ss, "REV" : self.R_5p_3p_ss }.iteritems():
-            
+            t_complete=0 
             for annot_ss_5p, annot_ss_3p_list in ss_juncs.iteritems():
                 
                 discovered_alt_transcript_hashes = {}
+                
+                t_complete+=1
+                if t_complete%10 ==0 :
+                    print t_complete, "/", len(ss_juncs.keys())
 
                 for annot_ss_3p in annot_ss_3p_list: 
                     
@@ -125,29 +131,44 @@ class SpliceGraph(object):
                         ss_acceptor_seq="AG"
                         delta_donor=0
                         delta_acceptor=2
+                        seq_s, seq_e = annot_ss_5p+2, annot_ss_3p-2
                     else:
                         ss_donor_seq="AC"
                         ss_acceptor_seq="CT"
                         delta_donor=2
                         delta_acceptor=0
+                        seq_s, seq_e = annot_ss_3p+2, annot_ss_5p-2 
                     
-                    seq_s, seq_e = sorted([annot_ss_3p, annot_ss_5p])
 
                     donors = np.array([m.start()+seq_s+delta_donor for m in re.finditer(ss_donor_seq, seq[seq_s:seq_e].upper())])
                     acceptors = np.array([m.start()+seq_s+delta_acceptor for m in re.finditer(ss_acceptor_seq, seq[seq_s:seq_e].upper())])
+                    
+                    """
+                    mult lets us just get the exons in the right direction
+                    """
+                    
+                    if strand_d=="FWD": 
+                        mult=1
+                    else:
+                        mult=-1
+
                     for donor in donors:
-                        for acceptor in acceptors[np.absolute(acceptors-donor)<n]:
+                        ds = mult*(donor-acceptors)
+                        for acceptor in acceptors[(ds<n)&(ds>0)]:
                             source = ""
                             alt_exon=sorted([acceptor, donor])
                         
-                            if alt_exon[1]==alt_exon[0]: continue
-                            
+                            if (alt_exon[1]==alt_exon[0]):
+                                continue
                             exon_paths = {"A":[0,2], "B":[0,1,2]}
 
                             EXONS  = [us_exon, alt_exon, ds_exon]
+                            """
                             FEATURE_ID = "%s_%s"%(source, "_".join(["%s:%d-%d"%(self.contig, e[0], e[1]) for e in EXONS]))
                             GENE_NAME = "%s_%s"%(source, ",".join(["%s"%gi['gene_name'] for gi in gene_inf]))
                             GENE_ID = "%s_%s"%(source,"_".join(["%s"%gi['gene_ID'] for gi in gene_inf]))
+                            """
+                            FEATURE_ID, GENE_NAME, GENE_ID="","",""
                             G_START = min(us_exon[0], ds_exon[0])
                             G_END = max(us_exon[1], ds_exon[1])
                             STRAND = strand_d == "FWD" and 1 or -1
@@ -164,15 +185,17 @@ class SpliceGraph(object):
                             #T_hash = alt_T.get_tuple_hash()
                             #discovered_alt_transcript_hashes[T_hash] = 1
 
+                            junc_tups = alt_T.junc_tuples(exon_paths, source, True)
+                            junc_writer.write(junc_tups)
+                            """ 
                             gff_s = alt_T.gff_string(exon_paths, source)
                             gff_novel_s = alt_T.gff_string({"A":[0,1]}, source)
                             bed_s = alt_T.bed_string(exon_paths, source, True)
-                            junc_tups = alt_T.junc_tuples(exon_paths, source, True)
                             
                             F_gff.write(gff_s)
                             F_novel_gff.write(gff_novel_s)
                             F_bed.write(bed_s)
-                            junc_writer.write(junc_tups)
+                            """ 
 
 
     def get_5p_micro_exon(self, seq, F_gff, F_novel_gff, F_bed, junc_writer, micro_exon_dir, n=60):
@@ -337,6 +360,7 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
     """
     contigs = kwargs.get('contigs', [])
     features = kwargs.get('features', ["transcript", "mRNA", "protein_coding"])
+    min_exons = kwargs.get('min_exons', 1) 
 
     limit_info = {"gff_id": contigs}
     GFF_parser = GFF.GFFParser()
@@ -363,24 +387,31 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
         R_5p_to_gene_info = {}
         R_3p_to_gene_info = {}
 
+        all_uniq_exons = {}
+
         for feature in rec.features:
             if feature.type in features:
+                if len(feature.sub_features)<min_exons:
+                    continue
                 t = Transcript.init_from_feature(contig, feature)
                 #alt_ss = t.get_all_3pSS(contig_seq)
+
                 if t.strand == 1:
                     t.get_splice_junctions(F_3p_5p_ss, 
                                            F_5p_3p_ss, 
                                            F_exon_s_e, 
                                            F_exon_e_s, 
                                            F_5p_to_gene_info, 
-                                           F_3p_to_gene_info)
+                                           F_3p_to_gene_info,
+                                           all_uniq_exons)
                 else:
                     t.get_splice_junctions(R_3p_5p_ss, 
                                            R_5p_3p_ss, 
                                            R_exon_s_e, 
                                            R_exon_e_s, 
                                            R_5p_to_gene_info, 
-                                           R_3p_to_gene_info)
+                                           R_3p_to_gene_info,
+                                           all_uniq_exons)
         
         SGs_by_contig[contig] = SpliceGraph(contig, F_3p_5p_ss = F_3p_5p_ss, 
                                                     F_5p_3p_ss = F_5p_3p_ss, 
@@ -393,7 +424,8 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
                                                     F_5p_to_gene_info = F_5p_to_gene_info,
                                                     F_3p_to_gene_info = F_3p_to_gene_info,
                                                     R_5p_to_gene_info = R_5p_to_gene_info,
-                                                    R_3p_to_gene_info = R_3p_to_gene_info)
+                                                    R_3p_to_gene_info = R_3p_to_gene_info,
+                                                    all_uniq_exons = all_uniq_exons)
     return SGs_by_contig
     
 #for rec in GFF_parser.parse_in_parts(open(o.fn_gff), limit_info=limit_info):

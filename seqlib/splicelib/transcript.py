@@ -160,7 +160,13 @@ class Transcript:
                 alts = np.array([m.start() for m in re.finditer("CT",seq[e1_e:e2_s])])
             return alts 
     
-    def get_splice_junctions(self, _3p_to_5p, _5p_to_3p, _exon_s_to_e, _exon_e_to_s, _5p_to_gene_info, _3p_to_gene_info):
+    def get_splice_junctions(self, _3p_to_5p, 
+                                   _5p_to_3p, 
+                                   _exon_s_to_e, 
+                                   _exon_e_to_s, 
+                                   _5p_to_gene_info, 
+                                   _3p_to_gene_info, 
+                                   all_uniq_exons):
         """
         side effect - modifies passed in dicts
         5p_to_3p and 3p_to_5p are strand specific defaultdicts
@@ -175,20 +181,24 @@ class Transcript:
         """
        
         gene_inf = self.get_gene_info()
-
+        
         for i in xrange(len(self.exons)-1):
 
             e1_s, e1_e = self.exons[i]
             e2_s, e2_e = self.exons[i+1]
             assert e1_s < e1_e and e2_s < e2_e
             assert e1_e < e2_s #previously whack due to CDS
-
+            
             #add the exons
+            e1_tup, e2_tup = tuple([e1_s, e1_e]), tuple([e2_s, e2_e])
             if not e1_s in _exon_s_to_e: _exon_s_to_e[e1_s] = []
             if not e1_e in _exon_e_to_s: _exon_e_to_s[e1_e] = []
-
+            if not e1_tup in all_uniq_exons: all_uniq_exons[e1_tup] = 1
+            if not e2_tup in all_uniq_exons: all_uniq_exons[e2_tup] = 1
+            
             if not e1_e in _exon_s_to_e[e1_s]:
                 _exon_s_to_e[e1_s].append(e1_e)
+            if not e1_s in _exon_e_to_s[e1_e]:
                 _exon_e_to_s[e1_e].append(e1_s)
             
             #add the introns
@@ -228,8 +238,12 @@ class Transcript:
         if not e1_s in _exon_s_to_e: _exon_s_to_e[e1_s] = []
         if not e1_e in _exon_e_to_s: _exon_e_to_s[e1_e] = []
         
+        e1_tup = tuple([e1_s, e1_e])
+        if not e1_tup in all_uniq_exons: all_uniq_exons[e1_tup] = 1
+        
         if not e1_e in _exon_s_to_e[e1_s]:
             _exon_s_to_e[e1_s].append(e1_e)
+        if not e1_s in _exon_e_to_s[e1_e]:
             _exon_e_to_s[e1_e].append(e1_s)
         
     @classmethod
