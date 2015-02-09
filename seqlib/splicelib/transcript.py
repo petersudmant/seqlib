@@ -1,4 +1,5 @@
 import pdb
+from bx.intervals.intersection import Interval, IntervalTree
 
 class Transcript:
 
@@ -166,7 +167,9 @@ class Transcript:
                                    _exon_e_to_s, 
                                    _5p_to_gene_info, 
                                    _3p_to_gene_info, 
-                                   all_uniq_exons):
+                                   all_uniq_exons,
+                                   LR_intron_interval_tree,
+                                   added_LR_intron_intervals):
         """
         side effect - modifies passed in dicts
         5p_to_3p and 3p_to_5p are strand specific defaultdicts
@@ -201,6 +204,10 @@ class Transcript:
             if not e1_s in _exon_e_to_s[e1_e]:
                 _exon_e_to_s[e1_e].append(e1_s)
             
+            if not tuple([e1_e, e2_s]) in added_LR_intron_intervals:
+                added_LR_intron_intervals[tuple([e1_e, e2_s])] = 1
+                LR_intron_interval_tree.insert_interval(Interval(e1_e, e2_s))
+
             #add the introns
             if self.strand == 1:
                 #FWD
@@ -215,7 +222,7 @@ class Transcript:
                 
                 if not gene_inf in _5p_to_gene_info[e1_e]: _5p_to_gene_info[e1_e].append(gene_inf)
                 if not gene_inf in _3p_to_gene_info[e2_s]: _3p_to_gene_info[e2_s].append(gene_inf)
-                
+
             else:
                 #REV
                 if not e2_s in _5p_to_3p: _5p_to_3p[e2_s] = []

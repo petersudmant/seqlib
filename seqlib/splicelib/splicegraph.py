@@ -10,6 +10,8 @@ from collections import defaultdict
 from sys import stderr
 from fastahack import FastaHack
 
+from bx.intervals.intersection import Interval, IntervalTree
+
 trans = string.maketrans('ATCGatcg', 'TAGCtacg')
 
 def revcomp(s):
@@ -48,6 +50,9 @@ class SpliceGraph(object):
         self.F_3p_to_gene_info = kwargs["F_3p_to_gene_info"]
         self.R_5p_to_gene_info = kwargs["R_5p_to_gene_info"]
         self.R_3p_to_gene_info = kwargs["R_3p_to_gene_info"]
+        
+        self.F_LR_intron_interval_tree = kwargs["F_LR_intron_interval_tree"]
+        self.R_LR_intron_interval_tree = kwargs["R_LR_intron_interval_tree"]
         
         self.all_uniq_exons = kwargs["all_uniq_exons"]
         
@@ -382,11 +387,16 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
         R_exon_s_e = {} 
         R_exon_e_s = {} 
 
+        F_LR_intron_interval_tree = IntervalTree()
+        R_LR_intron_interval_tree = IntervalTree()
+        F_added_LR_intron_intervals = {}
+        R_added_LR_intron_intervals = {}
+
         F_5p_to_gene_info = {}
         F_3p_to_gene_info = {}
         R_5p_to_gene_info = {}
         R_3p_to_gene_info = {}
-
+        
         all_uniq_exons = {}
 
         for feature in rec.features:
@@ -403,7 +413,9 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
                                            F_exon_e_s, 
                                            F_5p_to_gene_info, 
                                            F_3p_to_gene_info,
-                                           all_uniq_exons)
+                                           all_uniq_exons,
+                                           F_LR_intron_interval_tree,
+                                           F_added_LR_intron_intervals)
                 else:
                     t.get_splice_junctions(R_3p_5p_ss, 
                                            R_5p_3p_ss, 
@@ -411,7 +423,9 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
                                            R_exon_e_s, 
                                            R_5p_to_gene_info, 
                                            R_3p_to_gene_info,
-                                           all_uniq_exons)
+                                           all_uniq_exons,
+                                           R_LR_intron_interval_tree,
+                                           R_added_LR_intron_intervals)
         
         SGs_by_contig[contig] = SpliceGraph(contig, F_3p_5p_ss = F_3p_5p_ss, 
                                                     F_5p_3p_ss = F_5p_3p_ss, 
@@ -425,7 +439,9 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
                                                     F_3p_to_gene_info = F_3p_to_gene_info,
                                                     R_5p_to_gene_info = R_5p_to_gene_info,
                                                     R_3p_to_gene_info = R_3p_to_gene_info,
-                                                    all_uniq_exons = all_uniq_exons)
+                                                    all_uniq_exons = all_uniq_exons,
+                                                    F_LR_intron_interval_tree=F_LR_intron_interval_tree,
+                                                    R_LR_intron_interval_tree=R_LR_intron_interval_tree)
     return SGs_by_contig
     
 #for rec in GFF_parser.parse_in_parts(open(o.fn_gff), limit_info=limit_info):
