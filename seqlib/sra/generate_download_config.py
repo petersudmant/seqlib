@@ -17,28 +17,40 @@ def make_json_config(xml_dict, naming_pattern, fn_add_to_config):
 
     j_out = {"study_accession":STUDY_ACC}
     j_out["naming_pattern"] = naming_pattern
-    j_out["samples"] = {}
+    #j_out["samples"] = {}
+    j_out["experiments"] = {}
 
     for d in xml_dict["EXPERIMENT_PACKAGE_SET"]["EXPERIMENT_PACKAGE"]:
         """
         [u'EXPERIMENT', u'SUBMISSION', u'STUDY', u'SAMPLE', u'RUN_SET']
         """
         STUDY_accession = d["STUDY"]["@accession"]
-        assert STUDY_accession==STUDY_ACC
+        #print STUDY_accession, STUDY_ACC
+        #assert STUDY_accession==STUDY_ACC
         
+        experiment_accession = d['EXPERIMENT']["@accession"]
         sample_accession = d["SAMPLE"]["@accession"]
         sample_alias = d["SAMPLE"]["@alias"]
         sample_title = d["SAMPLE"]["TITLE"]
         #iterate over the 
+        #pdb.set_trace()
         run_accessions = []
+        print sample_accession, experiment_accession, sample_alias, sample_title
         if type(d["RUN_SET"]["RUN"]) == list:
             for st in d["RUN_SET"]["RUN"]:
                 run_accessions.append(st["@accession"])
         else:
             run_accessions = [d["RUN_SET"]["RUN"]["@accession"]]
 
-        j_out["samples"][sample_accession] = {"sample_accession":sample_accession,
+        #j_out["samples"][sample_accession] = {"sample_accession":sample_accession,
+        #                                      "sample_alias":sample_alias,
+        #                                      "sample_title":sample_title,
+        #                                      "experiment_accession":experiment_accession,
+        #                                      "run_accessions":run_accessions
+        #                                      }
+        j_out["experiments"][experiment_accession] = {"sample_accession":sample_accession,
                                               "sample_alias":sample_alias,
+                                              "experiment_accession":experiment_accession,
                                               "sample_title":sample_title,
                                               "run_accessions":run_accessions
                                               }
@@ -46,17 +58,20 @@ def make_json_config(xml_dict, naming_pattern, fn_add_to_config):
             for attribute in d["SAMPLE"]["SAMPLE_ATTRIBUTES"]["SAMPLE_ATTRIBUTE"]:
                 attr = attribute["TAG"]
                 val = attribute["VALUE"]
-                j_out["samples"][sample_accession][attr] = val
+                j_out["experiments"][experiment_accession][attr] = val
+                #j_out["samples"][sample_accession][attr] = val
 
         if "SAMPLE_NAME" in d["SAMPLE"]:
             for attribute_pair in d["SAMPLE"]["SAMPLE_NAME"].iteritems():
                 attr, val = attribute_pair
                 #print attr, val
-                j_out["samples"][sample_accession][attr] = val
+                #j_out["samples"][sample_accession][attr] = val
+                j_out["experiments"][experiment_accession][attr] = val
 
         if "samples" in add.keys():
             for key, value in add["samples"][sample_accession].iteritems():
-                j_out["samples"][sample_accession][key] = value
+                #j_out["samples"][sample_accession][key] = value
+                j_out["experiments"][experiment_accession][attr] = val
 
     FOUT = open("%s/config.json"%cwd,'w')
     FOUT.write(json.dumps(j_out, indent=4, separators=(",", ": ")))
