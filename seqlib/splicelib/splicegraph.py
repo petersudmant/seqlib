@@ -56,6 +56,12 @@ class SpliceGraph(object):
         
         self.all_uniq_exons = kwargs["all_uniq_exons"]
         
+    def get_csx(self, ss, strand, ss_type_3p=False, ss_type_5p=False):
+        return self.get_common_shortest_exon(ss, 
+                                             strand, 
+                                             ss_type_3p=ss_type_3p, 
+                                             ss_type_5p=ss_type_5p)
+
     def get_common_shortest_exon(self, ss, strand, ss_type_3p=False, ss_type_5p=False):
         """
         ss_type = 5' | 3'
@@ -90,7 +96,50 @@ class SpliceGraph(object):
             else:
                 return tuple([max(self.R_exon_e_s[ss]), ss])
     
+    def get_intron_exon_juncs(self, strand):
+        if strand=="REV":
+            i_5p_3p = self.R_5p_3p_ss
+            i_3p_5p = self.R_3p_5p_ss
+            e_3p_5p = self.R_exon_e_s
+            e_5p_3p = self.R_exon_s_e
+        else:
+            i_5p_3p = self.F_5p_3p_ss
+            i_3p_5p = self.F_3p_5p_ss
+            e_3p_5p = self.F_exon_s_e
+            e_5p_3p = self.F_exon_e_s
+
+        return i_5p_3p, i_3p_5p, e_5p_3p, e_3p_5p
     
+    def get_gene_ID(self, strand_d, ss_3p=None, ss_5p=None):
+        
+        assert ss_3p!=ss_5p
+
+        if strand_d == "FWD":
+            if ss_3p:
+                return self.F_3p_to_gene_info[ss_3p][0]['gene_ID']
+            else:
+                return self.F_5p_to_gene_info[ss_5p][0]['gene_ID']
+        else:
+            if ss_3p:
+                return self.R_3p_to_gene_info[ss_3p][0]['gene_ID']
+            else:
+                return self.R_5p_to_gene_info[ss_5p][0]['gene_ID']
+    
+    def get_gene_name(self, strand_d, ss_3p=None, ss_5p=None):
+        
+        assert ss_3p!=ss_5p
+
+        if strand_d == "FWD":
+            if ss_3p:
+                return self.F_3p_to_gene_info[ss_3p][0]['gene_name']
+            else:
+                return self.F_5p_to_gene_info[ss_5p][0]['gene_name']
+        else:
+            if ss_3p:
+                return self.R_3p_to_gene_info[ss_3p][0]['gene_name']
+            else:
+                return self.R_5p_to_gene_info[ss_5p][0]['gene_name']
+
     def get_gene_info(self, strand_d, ss_3p, ss_5p):
 
         if strand_d == "FWD":
