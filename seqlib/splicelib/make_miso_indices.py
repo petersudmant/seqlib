@@ -1,6 +1,6 @@
 import argparse
 import pdb
-import time
+import os
 import numpy as np
 from fastahack import FastaHack
 from collections import defaultdict
@@ -33,16 +33,30 @@ if __name__=="__main__":
     contig_sizes = {}
     for contig in contigs:
         contig_sizes[contig] = fa.get_sequence_length(contig)
+    
+    if not os.path.exists("{outdir}/gff".format(outdir=o.fn_out_dir)):
+        os.mkdirs("{outdir}/gff".format(outdir=o.fn_out_dir))
+    if not os.path.exists("{outdir}/bed".format(outdir=o.fn_out_dir)):
+        os.mkdirs("{outdir}/bed".format(outdir=o.fn_out_dir))
 
     splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, 
                                                               contigs=contigs)
     m_util = mu.MisoUtils(sg_by_contig = splice_graphs_by_contig, contig_sizes = contig_sizes)
 
-    m_util.define_SE_events("{outdir}/SE.gff".format(outdir=o.fn_out_dir))
-    m_util.define_A3SS_events("{outdir}/A3SS.gff".format(outdir=o.fn_out_dir))
-    m_util.define_A5SS_events("{outdir}/A5SS.gff".format(outdir=o.fn_out_dir))
-    m_util.define_MXE_events("{outdir}/MXE.gff".format(outdir=o.fn_out_dir))
-    m_util.define_RI_events("{outdir}/RI.gff".format(outdir=o.fn_out_dir))
-    m_util.define_ALE_events("{outdir}/ALE.gff".format(outdir=o.fn_out_dir))
-    m_util.define_AFE_events("{outdir}/AFE.gff".format(outdir=o.fn_out_dir))
+    m_util.define_SE_events("{outdir}/gff/SE.gff".format(outdir=o.fn_out_dir),
+                            "{outdir}/bed/SE.bed".format(outdir=o.fn_out_dir))
+
+    m_util.define_A3SS_events("{outdir}/gff/A3SS.gff".format(outdir=o.fn_out_dir),
+                              "{outdir}/bed/A3SS.bed".format(outdir=o.fn_out_dir))
+    
+    m_util.define_A5SS_events("{outdir}/gff/A5SS.gff".format(outdir=o.fn_out_dir),
+                              "{outdir}/bed/A5SS.bed".format(outdir=o.fn_out_dir))
+    
+    m_util.define_MXE_events("{outdir}/gff/MXE.gff".format(outdir=o.fn_out_dir),
+                              "{outdir}/bed/MXE.bed".format(outdir=o.fn_out_dir))
+
+    #m_util.define_MXE_events("{outdir}/MXE.gff".format(outdir=o.fn_out_dir))
+    #m_util.define_RI_events("{outdir}/RI.gff".format(outdir=o.fn_out_dir))
+    #m_util.define_ALE_events("{outdir}/ALE.gff".format(outdir=o.fn_out_dir))
+    #m_util.define_AFE_events("{outdir}/AFE.gff".format(outdir=o.fn_out_dir))
     
