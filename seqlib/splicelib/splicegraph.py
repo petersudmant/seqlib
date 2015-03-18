@@ -45,7 +45,17 @@ class SpliceGraph(object):
         self.F_exon_e_s = kwargs["F_exon_e_s"]
         self.R_exon_s_e = kwargs["R_exon_s_e"]
         self.R_exon_e_s = kwargs["R_exon_e_s"]
+       
+        self.F_le_s_e = kwargs["F_le_s_e"]
+        self.F_le_e_s = kwargs["F_le_e_s"]
+        self.R_le_s_e = kwargs["R_le_s_e"]
+        self.R_le_e_s = kwargs["R_le_e_s"]
         
+        self.F_fe_s_e = kwargs["F_fe_s_e"]
+        self.F_fe_e_s = kwargs["F_fe_e_s"]
+        self.R_fe_s_e = kwargs["R_fe_s_e"]
+        self.R_fe_e_s = kwargs["R_fe_e_s"]
+
         self.F_5p_to_gene_info = kwargs["F_5p_to_gene_info"]
         self.F_3p_to_gene_info = kwargs["F_3p_to_gene_info"]
         self.R_5p_to_gene_info = kwargs["R_5p_to_gene_info"]
@@ -96,6 +106,20 @@ class SpliceGraph(object):
             else:
                 return tuple([max(self.R_exon_e_s[ss]), ss])
     
+    def get_first_last_exons(self, strand):
+        if strand=="REV":
+            le_s_e = self.R_le_s_e
+            le_e_s = self.R_le_e_s
+            fe_s_e = self.R_fe_s_e
+            fe_e_s = self.R_fe_e_s
+        else:
+            le_s_e = self.F_le_s_e
+            le_e_s = self.F_le_e_s
+            fe_s_e = self.F_fe_s_e
+            fe_e_s = self.F_fe_e_s
+
+        return le_s_e, le_e_s, fe_s_e, fe_e_s
+
     def get_intron_exon_juncs(self, strand):
         if strand=="REV":
             i_5p_3p = self.R_5p_3p_ss
@@ -435,6 +459,16 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
         F_exon_e_s = {} 
         R_exon_s_e = {} 
         R_exon_e_s = {} 
+        
+        F_le_s_e = {}
+        F_le_e_s = {}
+        R_le_s_e = {}
+        R_le_e_s = {}
+        
+        F_fe_s_e = {}
+        F_fe_e_s = {}
+        R_fe_s_e = {}
+        R_fe_e_s = {}
 
         F_LR_intron_interval_tree = IntervalTree()
         R_LR_intron_interval_tree = IntervalTree()
@@ -462,6 +496,10 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
                                            F_exon_e_s, 
                                            F_5p_to_gene_info, 
                                            F_3p_to_gene_info,
+                                           F_le_s_e,
+                                           F_le_e_s,
+                                           F_fe_s_e,
+                                           F_fe_e_s,
                                            all_uniq_exons,
                                            F_LR_intron_interval_tree,
                                            F_added_LR_intron_intervals)
@@ -472,6 +510,10 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
                                            R_exon_e_s, 
                                            R_5p_to_gene_info, 
                                            R_3p_to_gene_info,
+                                           R_le_s_e,
+                                           R_le_e_s,
+                                           R_fe_s_e,
+                                           R_fe_e_s,
                                            all_uniq_exons,
                                            R_LR_intron_interval_tree,
                                            R_added_LR_intron_intervals)
@@ -488,6 +530,14 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
                                                     F_3p_to_gene_info = F_3p_to_gene_info,
                                                     R_5p_to_gene_info = R_5p_to_gene_info,
                                                     R_3p_to_gene_info = R_3p_to_gene_info,
+                                                    F_le_s_e = F_le_s_e,
+                                                    F_le_e_s = F_le_e_s,
+                                                    R_le_s_e = R_le_s_e,
+                                                    R_le_e_s = R_le_e_s,
+                                                    F_fe_s_e = F_fe_s_e,
+                                                    F_fe_e_s = F_fe_e_s,
+                                                    R_fe_s_e = R_fe_s_e,
+                                                    R_fe_e_s = R_fe_e_s,
                                                     all_uniq_exons = all_uniq_exons,
                                                     F_LR_intron_interval_tree=F_LR_intron_interval_tree,
                                                     R_LR_intron_interval_tree=R_LR_intron_interval_tree)
