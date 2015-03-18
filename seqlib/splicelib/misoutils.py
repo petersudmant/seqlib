@@ -257,12 +257,65 @@ class MisoUtils(object):
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
 
+    def overlap(self, ex1, ex2):
+        #exons in s,e format 
+        return (ex1[0]<=ex2[1] and ex2[0]<=ex1[1])
 
-    def define_RI_events(self, fn_out):
-        pass
+    def get_AFE(self, sg, a_3p, d_5ps, strand):
+        if strand=="REV":
+            d_5ps = sorted(d_5ps, reverse=strand=="REV")
+        else:
+            d_5ps = sorted(d_5ps)
+        
+        i_5p_3p, i_3p_5p, e_5p_3p, e_3p_5p = sg.get_intron_exon_juncs(strand)
+        le_s_e, le_e_s, fe_s_e, fe_e_s = sg.get_first_last_exons(strand)
+
+        if strand == "REV":
+            fe_5p_donors_s = fe_s_e
+        else:
+            fe_5p_donors_s = fe_e_s
+
+        ds_exon = sg.get_csx(a_3p, strand, ss_type_3p=True)
+                                             
+        AFEs = []
+        n_5ps = len(d_5ps)
+        for i,j in itertools.combinations(range(n_5ps),2):
+            assert i!=j
+            us_alt_5p = d_5ps[i]
+            ds_alt_5p = d_5ps[j]
+            
+            if us_alt_5p in fe_5p_donors_s and ds_alt_5p in fe_5p_donors_s:
+                us_alt_FE = sorted([us_alt_5p, fe_5p_donors_s[us_alt_5p]])
+                ds_alt_FE = sorted([ds_alt_5p, fe_5p_donors_s[ds_alt_5p]])
+                if not self.overlap(us_alt_FE, ds_alt_FE):
+                    AFEs.append([us_alt_FE, ds_alt_FE, ds_exon])
+
+        return AFEs
+
+    def define_AFE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+        F_gff = open(fn_out_gff,'w')
+        F_bed = open(fn_out_bed,'w')
+
+        for contig, sg in self.sgs_by_contig.items():
+            F_R_ss_juncs = { "FWD" : sg.F_3p_5p_ss, 
+                             "REV" : sg.R_3p_5p_ss }
+            for strand_d, ss_juncs in F_R_ss_juncs.items():
+                for a_3p, d_5ps in ss_juncs.iteritems(): 
+                    AFEs = self.get_AFE(sg, a_3p, d_5ps, strand_d)
+                    for AFE in AFEs:
+                        us_alt_F_exon, ds_alt_F_exon, ds_exon = AFE
+                        exon_paths = {"A":[0,2], "B":[1,2]}
+                        EXONS = [us_alt_F_exon, ds_alt_F_exon, ds_exon]
+                        trans =  self.make_transcript(sg, contig, strand_d, EXONS)
+                        
+                        gff_s = trans.gff_string(exon_paths, source)
+                        bed_s = trans.bed_string(exon_paths, source)
+                        F_gff.write(gff_s)
+                        F_bed.write(bed_s)
+
     def define_ALE_events(self, fn_out):
         pass
-    def define_AFE_events(self, fn_out):
+    def define_RI_events(self, fn_out):
         pass
 
 
