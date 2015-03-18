@@ -78,7 +78,10 @@ class Transcript:
     def bed_string(self, exon_paths, source, UCSC=False, annot_RGB="000,204,102", novel_RGB="64,64,64"):
         bed_lines = []
         RGB = source=="annotated" and annot_RGB or novel_RGB
-        pattern = "{contig}\t{start}\t{end}\t{name}\t0\t{strand}\t{start}\t{end}\t{RGB}\t{n_exons}\t{exon_sizes}\t{exon_starts}"
+        pattern = ("{contig}\t{start}\t{end}\t{name}\t"
+                   "0\t{strand}\t{start}\t{end}\t{RGB}\t"
+                   "{n_exons}\t{exon_sizes}\t{exon_starts}")
+                   
         strand = self.strand == 1 and "+" or "-"
         
         formatted_contig = self.contig
@@ -167,9 +170,14 @@ class Transcript:
                                    _exon_e_to_s, 
                                    _5p_to_gene_info, 
                                    _3p_to_gene_info, 
+                                   _le_s_e,
+                                   _le_e_s,
+                                   _fe_s_e,
+                                   _fe_e_s,
                                    all_uniq_exons,
                                    LR_intron_interval_tree,
                                    added_LR_intron_intervals):
+
         """
         side effect - modifies passed in dicts
         5p_to_3p and 3p_to_5p are strand specific defaultdicts
@@ -183,6 +191,22 @@ class Transcript:
             -----/     \-----        |
         """
        
+
+        """
+        exon order is dependent on strand
+        """
+        if self.strand == 1:
+            fe_s, fe_e = self.exons[0] 
+            le_s, le_e = self.exons[-1] 
+        else:
+            fe_s, fe_e = self.exons[-1] 
+            le_s, le_e = self.exons[0] 
+
+        _fe_s_e[fe_s] = fe_e
+        _fe_e_s[fe_e] = fe_s
+        _le_s_e[le_s] = le_e
+        _le_e_s[le_e] = le_s
+        
         gene_inf = self.get_gene_info()
         
         for i in xrange(len(self.exons)-1):
@@ -253,6 +277,8 @@ class Transcript:
         if not e1_s in _exon_e_to_s[e1_e]:
             _exon_e_to_s[e1_e].append(e1_s)
         
+        
+        
     @classmethod
     def init_from_feature(cls, contig, feature):
         """
@@ -269,7 +295,6 @@ class Transcript:
                   'exons':[[s.location.start.position,
                             s.location.end.position] for s in feature.sub_features if s.type=="exon"]
                   }
-                  
         return cls(**kwargs)
 
 
