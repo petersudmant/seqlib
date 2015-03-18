@@ -89,11 +89,15 @@ class Transcript:
             formatted_contig  = "chr%s"%self.contig
         for curr_ID, e_path in exon_paths.iteritems():
             curr_exons = [self.exons[i] for i in e_path]
+
+            t_start = min(curr_exons[0][0], curr_exons[-1][0])
+            t_end = max(curr_exons[0][1], curr_exons[-1][1])
+
             if strand == "-": curr_exons = curr_exons[::-1] 
             min_p = min([min(e[0],e[1]) for e in curr_exons])
             bed_lines.append(pattern.format(contig=formatted_contig,
-                                            start = self.g_start,
-                                            end = self.g_end,
+                                            start = t_start,
+                                            end = t_end,
                                             name="%s,%s"%(self.feature_ID, curr_ID),
                                             strand = strand,
                                             RGB = RGB,
@@ -130,11 +134,16 @@ class Transcript:
         """
         for curr_ID, e_path in exon_paths.iteritems():
             mRNA_ID = "%s_%s"%(self.feature_ID, curr_ID)
+            
+            curr_exons = [self.exons[i] for i in e_path]
+            t_start = min(curr_exons[0][0], curr_exons[-1][0])
+            t_end = max(curr_exons[0][1], curr_exons[-1][1])
+
             gff_lines.append( pattern.format(contig=self.contig, 
                                              source = source, 
                                              _type = "mRNA", 
-                                             start = self.g_start+1,
-                                             end = self.g_end, 
+                                             start = t_start+1,
+                                             end = t_end,
                                              strand = strand,
                                              ID = mRNA_ID, 
                                              other = "Parent=%s"%(self.feature_ID)))
