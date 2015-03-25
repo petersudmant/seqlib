@@ -57,9 +57,9 @@ if __name__=="__main__":
     
     m_util.define_AFE_events("{outdir}/gff/AFE.gff".format(outdir=o.fn_out_dir),
                               "{outdir}/bed/AFE.bed".format(outdir=o.fn_out_dir))
+    
+    m_util.define_ALE_events("{outdir}/gff/ALE.gff".format(outdir=o.fn_out_dir),
+                             "{outdir}/bed/ALE.bed".format(outdir=o.fn_out_dir))
 
-    #m_util.define_MXE_events("{outdir}/MXE.gff".format(outdir=o.fn_out_dir))
     #m_util.define_RI_events("{outdir}/RI.gff".format(outdir=o.fn_out_dir))
-    #m_util.define_ALE_events("{outdir}/ALE.gff".format(outdir=o.fn_out_dir))
-    #m_util.define_AFE_events("{outdir}/AFE.gff".format(outdir=o.fn_out_dir))
     

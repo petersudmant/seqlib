@@ -313,8 +313,58 @@ class MisoUtils(object):
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
 
-    def define_ALE_events(self, fn_out):
-        pass
+    def get_ALE(self, sg, d_5p, a_3ps, strand):
+        if strand=="REV":
+            a_3ps = sorted(a_3ps, reverse=strand=="REV")
+        else:
+            a_3ps = sorted(a_3ps)
+        
+        i_5p_3p, i_3p_5p, e_5p_3p, e_3p_5p = sg.get_intron_exon_juncs(strand)
+        le_s_e, le_e_s, fe_s_e, fe_e_s = sg.get_first_last_exons(strand)
+
+        if strand == "REV":
+            le_3p_accept_e = le_e_s
+        else:
+            le_3p_accept_e = le_s_e
+
+        us_exon = sg.get_csx(d_5p, strand, ss_type_5p=True)
+                                             
+        ALEs = []
+        n_3ps = len(a_3ps)
+        for i,j in itertools.combinations(range(n_3ps),2):
+            assert i!=j
+            us_alt_3p = a_3ps[i]
+            ds_alt_3p = a_3ps[j]
+            
+            if us_alt_3p in le_3p_accept_e and ds_alt_3p in le_3p_accept_e:
+                us_alt_LE = sorted([us_alt_3p, le_3p_accept_s[us_alt_3p]])
+                ds_alt_LE = sorted([ds_alt_3p, le_3p_accept_s[ds_alt_3p]])
+                if not self.overlap(us_alt_LE, ds_alt_LE):
+                    ALEs.append([us_exon, us_alt_LE, us_alt_LE])
+
+        return ALEs
+
+    def define_ALE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+        F_gff = open(fn_out_gff,'w')
+        F_bed = open(fn_out_bed,'w')
+        
+        for contig, sg in self.sgs_by_contig.items():
+            F_R_ss_juncs = { "FWD" : sg.F_5p_3p_ss, 
+                             "REV" : sg.R_5p_3p_ss }
+            for strand_d, ss_juncs in F_R_ss_juncs.items():
+                for d_5p, a_3ps in ss_juncs.iteritems(): 
+                    ALEs = self.get_ALE(sg, d_5p, a_3ps, strand_d)
+                    for ALE in ALEs:
+                        us_exon, us_alt_L_exon, ds_alt_L_exon = ALE
+                        exon_paths = {"A":[0,1], "B":[0,2]}
+                        EXONS = [us_exon, us_alt_L_exon, ds_alt_L_exon]
+                        trans =  self.make_transcript(sg, contig, strand_d, EXONS)
+                        
+                        gff_s = trans.gff_string(exon_paths, source)
+                        bed_s = trans.bed_string(exon_paths, source)
+                        F_gff.write(gff_s)
+                        F_bed.write(bed_s)
+
     def define_RI_events(self, fn_out):
         pass
 
