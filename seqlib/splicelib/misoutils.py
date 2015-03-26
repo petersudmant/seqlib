@@ -1,5 +1,7 @@
 import pdb
 import itertools
+import networkx as nx
+
 from transcript import Transcript
 
 class MisoUtils(object):
@@ -16,8 +18,17 @@ class MisoUtils(object):
         also, note that we are assuming US to DS order of exons
         """
         e1_5p = strand_d=="FWD" and EXONS[0][1] or EXONS[0][0] 
-        GENE_NAME = sg.get_gene_name(strand_d, ss_5p=e1_5p)
-        GENE_ID = sg.get_gene_ID(strand_d, ss_5p=e1_5p)
+        e1_3p = strand_d=="FWD" and EXONS[0][0] or EXONS[0][1] 
+        """
+        get gene name based on 5', or if 5' not hashed, because
+        you got the SCX, then us the 3'
+        """
+        if sg.get_gene_name(strand_d, ss_5p=e1_5p):
+            GENE_NAME = sg.get_gene_name(strand_d, ss_5p=e1_5p)
+            GENE_ID = sg.get_gene_ID(strand_d, ss_5p=e1_5p)
+        else:
+            GENE_NAME = sg.get_gene_name(strand_d, ss_3p=e1_3p)
+            GENE_ID = sg.get_gene_ID(strand_d, ss_3p=e1_3p)
 
         G_START = min([e[0] for e in EXONS])
         G_END = max([e[1] for e in EXONS])
@@ -260,39 +271,129 @@ class MisoUtils(object):
     def overlap(self, ex1, ex2):
         #exons in s,e format 
         return (ex1[0]<=ex2[1] and ex2[0]<=ex1[1])
+    
+    def get_AFE(self, sg, connected_exs, strand):
+        le_s_e, le_e_s, fe_s_e, fe_e_s = sg.get_first_last_exons(strand)
+        i_5p_3p, i_3p_5p, e_5p_3p, e_3p_5p = sg.get_intron_exon_juncs(strand)
 
-    def get_AFE(self, sg, a_3p, d_5ps, strand):
+        curr_fexs = [ex for ex in connected_exs if ex[0] in fe_s_e]
+        
+        if strand=="REV":
+            curr_fexs = sorted(curr_fexs, reverse=True)
+            ex_to_donor = lambda x: x[0]
+        else:
+            curr_fexs = sorted(curr_fexs)
+            ex_to_donor = lambda x: x[1]
+        
+        ##now collapse fexs to non-overlapping
+        fex_uniq_5ps = list(set([ex_to_donor(fex) for fex in curr_fexs]))
+        csx_fexs = [sg.get_csx(d_5p, strand, ss_type_5p=True) for d_5p in fex_uniq_5ps]
+        AFEs = []
+        n_fexs = len(csx_fexs)
+        
+        for i,j in itertools.combinations(range(n_fexs),2):
+            assert i!=j
+            us_fex = csx_fexs[i] #distal, us
+            ds_fex = csx_fexs[j] #proximal, ds
+            if self.overlap(us_fex,ds_fex): continue
+            AFEs.append([us_fex,ds_fex])
+        return AFEs
+
+    def define_AFE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+        F_gff = open(fn_out_gff,'w')
+        F_bed = open(fn_out_bed,'w')
+
+        for contig, sg in self.sgs_by_contig.items():
+            F_R_ex_graphs = { "FWD" : sg.F_exon_G, 
+                              "REV" : sg.R_exon_G }
+            for strand_d, ex_G in F_R_ex_graphs.items():
+                for connected_exs in nx.connected_components(ex_G): 
+                    AFEs = self.get_AFE(sg, connected_exs, strand_d)
+                    for AFE in AFEs:
+                        EXONS = AFE
+                        exon_paths = {"A":[0], "B":[1]}
+                        trans =  self.make_transcript(sg, contig, strand_d, EXONS)
+                        gff_s = trans.gff_string(exon_paths, source)
+                        bed_s = trans.bed_string(exon_paths, source)
+                        F_gff.write(gff_s)
+                        F_bed.write(bed_s)
+
+    def get_ALE(self, sg, connected_exs, strand):
+        """
+        TO DO _ remove overlapping exons..., just take the... shortest?
+        example: is this really an ALE?
+        chr19:46,325,214-46,335,433
+        """
+        le_s_e, le_e_s, fe_s_e, fe_e_s = sg.get_first_last_exons(strand)
+        i_5p_3p, i_3p_5p, e_5p_3p, e_3p_5p = sg.get_intron_exon_juncs(strand)
+
+        curr_lexs = [ex for ex in connected_exs if ex[0] in le_s_e]
+        
+        if strand=="REV":
+            curr_lexs = sorted(curr_lexs, reverse=True)
+            ex_to_acceptor = lambda x: x[1]
+        else:
+            curr_lexs = sorted(curr_lexs)
+            ex_to_acceptor = lambda x: x[0]
+        
+        ##now collapse lexs to non-overlapping
+        lex_uniq_3ps = list(set([ex_to_acceptor(lex) for lex in curr_lexs]))
+        csx_lexs = [sg.get_csx(a_3p, strand, ss_type_3p=True) for a_3p in lex_uniq_3ps]
+        ALEs = []
+        n_lexs = len(csx_lexs)
+        
+        for i,j in itertools.combinations(range(n_lexs),2):
+            assert i!=j
+            us_lex = csx_lexs[i] #distal, us
+            ds_lex = csx_lexs[j] #proximal, ds
+            if self.overlap(us_lex,ds_lex): continue
+            ALEs.append([us_lex,ds_lex])
+        return ALEs
+
+    def define_ALE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+        F_gff = open(fn_out_gff,'w')
+        F_bed = open(fn_out_bed,'w')
+
+        for contig, sg in self.sgs_by_contig.items():
+            F_R_ex_graphs = { "FWD" : sg.F_exon_G, 
+                              "REV" : sg.R_exon_G }
+            for strand_d, ex_G in F_R_ex_graphs.items():
+                for connected_exs in nx.connected_components(ex_G): 
+                    ALEs = self.get_ALE(sg, connected_exs, strand_d)
+                    for ALE in ALEs:
+                        EXONS = ALE
+                        exon_paths = {"A":[0], "B":[1]}
+                        trans =  self.make_transcript(sg, contig, strand_d, EXONS)
+                        gff_s = trans.gff_string(exon_paths, source)
+                        bed_s = trans.bed_string(exon_paths, source)
+                        F_gff.write(gff_s)
+                        F_bed.write(bed_s)
+
+
+    def get_RIs(self, sg, a_3p, d_5ps, strand):
         if strand=="REV":
             d_5ps = sorted(d_5ps, reverse=strand=="REV")
         else:
             d_5ps = sorted(d_5ps)
         
         i_5p_3p, i_3p_5p, e_5p_3p, e_3p_5p = sg.get_intron_exon_juncs(strand)
-        le_s_e, le_e_s, fe_s_e, fe_e_s = sg.get_first_last_exons(strand)
+        
+        ds_ex_5ps = set(e_3p_5p[a_3p])
 
-        if strand == "REV":
-            fe_5p_donors_s = fe_s_e
-        else:
-            fe_5p_donors_s = fe_e_s
+        RIs = []
+        for us_5p in d_5ps:
+            for us_ex_3p in e_5p_3p[us_5p]:
+                us_ex_5ps = set(e_3p_5p[us_ex_3p])
+                intersection = us_ex_5ps.intersection(ds_ex_5ps)
+                for shared_5p in intersection:
+                    RI_exon = tuple(sorted([us_ex_3p, shared_5p]))
+                    us_ex = tuple(sorted([us_ex_3p,us_5p]))
+                    ds_ex = tuple(sorted([a_3p,shared_5p]))
+                    RIs.append([us_ex, ds_ex, RI_exon])
+        return RIs
 
-        ds_exon = sg.get_csx(a_3p, strand, ss_type_3p=True)
-                                             
-        AFEs = []
-        n_5ps = len(d_5ps)
-        for i,j in itertools.combinations(range(n_5ps),2):
-            assert i!=j
-            us_alt_5p = d_5ps[i]
-            ds_alt_5p = d_5ps[j]
-            
-            if us_alt_5p in fe_5p_donors_s and ds_alt_5p in fe_5p_donors_s:
-                us_alt_FE = sorted([us_alt_5p, fe_5p_donors_s[us_alt_5p]])
-                ds_alt_FE = sorted([ds_alt_5p, fe_5p_donors_s[ds_alt_5p]])
-                if not self.overlap(us_alt_FE, ds_alt_FE):
-                    AFEs.append([us_alt_FE, ds_alt_FE, ds_exon])
 
-        return AFEs
-
-    def define_AFE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+    def define_RI_events(self, fn_out_gff, fn_out_bed, source="annot"):
         F_gff = open(fn_out_gff,'w')
         F_bed = open(fn_out_bed,'w')
 
@@ -301,72 +402,15 @@ class MisoUtils(object):
                              "REV" : sg.R_3p_5p_ss }
             for strand_d, ss_juncs in F_R_ss_juncs.items():
                 for a_3p, d_5ps in ss_juncs.iteritems(): 
-                    AFEs = self.get_AFE(sg, a_3p, d_5ps, strand_d)
-                    for AFE in AFEs:
-                        us_alt_F_exon, ds_alt_F_exon, ds_exon = AFE
-                        exon_paths = {"A":[0,2], "B":[1,2]}
-                        EXONS = [us_alt_F_exon, ds_alt_F_exon, ds_exon]
+                    RIs = self.get_RIs(sg, a_3p, d_5ps, strand_d)
+                    for RI in RIs:
+                        EXONS = RI #us_exon, ds_ex, RI_exon
+                        exon_paths = {"A":[0,1], "B":[2]}
                         trans =  self.make_transcript(sg, contig, strand_d, EXONS)
-                        
                         gff_s = trans.gff_string(exon_paths, source)
                         bed_s = trans.bed_string(exon_paths, source)
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
-
-    def get_ALE(self, sg, d_5p, a_3ps, strand):
-        if strand=="REV":
-            a_3ps = sorted(a_3ps, reverse=strand=="REV")
-        else:
-            a_3ps = sorted(a_3ps)
-        
-        i_5p_3p, i_3p_5p, e_5p_3p, e_3p_5p = sg.get_intron_exon_juncs(strand)
-        le_s_e, le_e_s, fe_s_e, fe_e_s = sg.get_first_last_exons(strand)
-
-        if strand == "REV":
-            le_3p_accept_e = le_e_s
-        else:
-            le_3p_accept_e = le_s_e
-
-        us_exon = sg.get_csx(d_5p, strand, ss_type_5p=True)
-                                             
-        ALEs = []
-        n_3ps = len(a_3ps)
-        for i,j in itertools.combinations(range(n_3ps),2):
-            assert i!=j
-            us_alt_3p = a_3ps[i]
-            ds_alt_3p = a_3ps[j]
-            
-            if us_alt_3p in le_3p_accept_e and ds_alt_3p in le_3p_accept_e:
-                us_alt_LE = sorted([us_alt_3p, le_3p_accept_s[us_alt_3p]])
-                ds_alt_LE = sorted([ds_alt_3p, le_3p_accept_s[ds_alt_3p]])
-                if not self.overlap(us_alt_LE, ds_alt_LE):
-                    ALEs.append([us_exon, us_alt_LE, us_alt_LE])
-
-        return ALEs
-
-    def define_ALE_events(self, fn_out_gff, fn_out_bed, source="annot"):
-        F_gff = open(fn_out_gff,'w')
-        F_bed = open(fn_out_bed,'w')
-        
-        for contig, sg in self.sgs_by_contig.items():
-            F_R_ss_juncs = { "FWD" : sg.F_5p_3p_ss, 
-                             "REV" : sg.R_5p_3p_ss }
-            for strand_d, ss_juncs in F_R_ss_juncs.items():
-                for d_5p, a_3ps in ss_juncs.iteritems(): 
-                    ALEs = self.get_ALE(sg, d_5p, a_3ps, strand_d)
-                    for ALE in ALEs:
-                        us_exon, us_alt_L_exon, ds_alt_L_exon = ALE
-                        exon_paths = {"A":[0,1], "B":[0,2]}
-                        EXONS = [us_exon, us_alt_L_exon, ds_alt_L_exon]
-                        trans =  self.make_transcript(sg, contig, strand_d, EXONS)
-                        
-                        gff_s = trans.gff_string(exon_paths, source)
-                        bed_s = trans.bed_string(exon_paths, source)
-                        F_gff.write(gff_s)
-                        F_bed.write(bed_s)
-
-    def define_RI_events(self, fn_out):
-        pass
 
 
 

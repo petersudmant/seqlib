@@ -35,9 +35,9 @@ if __name__=="__main__":
         contig_sizes[contig] = fa.get_sequence_length(contig)
     
     if not os.path.exists("{outdir}/gff".format(outdir=o.fn_out_dir)):
-        os.mkdirs("{outdir}/gff".format(outdir=o.fn_out_dir))
+        os.mkdir("{outdir}/gff".format(outdir=o.fn_out_dir))
     if not os.path.exists("{outdir}/bed".format(outdir=o.fn_out_dir)):
-        os.mkdirs("{outdir}/bed".format(outdir=o.fn_out_dir))
+        os.mkdir("{outdir}/bed".format(outdir=o.fn_out_dir))
 
     splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, 
                                                               contigs=contigs)
@@ -60,6 +60,8 @@ if __name__=="__main__":
     
     m_util.define_ALE_events("{outdir}/gff/ALE.gff".format(outdir=o.fn_out_dir),
                              "{outdir}/bed/ALE.bed".format(outdir=o.fn_out_dir))
+    
+    m_util.define_RI_events("{outdir}/gff/RI.gff".format(outdir=o.fn_out_dir),
+                            "{outdir}/bed/RI.bed".format(outdir=o.fn_out_dir))
 
-    #m_util.define_RI_events("{outdir}/RI.gff".format(outdir=o.fn_out_dir))
     

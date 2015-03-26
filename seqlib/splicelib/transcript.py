@@ -185,7 +185,9 @@ class Transcript:
                                    _fe_e_s,
                                    all_uniq_exons,
                                    LR_intron_interval_tree,
-                                   added_LR_intron_intervals):
+                                   added_LR_intron_intervals,
+                                   exon_G, 
+                                   ss_G):
 
         """
         side effect - modifies passed in dicts
@@ -222,6 +224,10 @@ class Transcript:
 
             e1_s, e1_e = self.exons[i]
             e2_s, e2_e = self.exons[i+1]
+            """
+            assertions here - all exons processed from left to right
+            ie e1 < e2 and ei < ei+1
+            """
             assert e1_s < e1_e and e2_s < e2_e
             assert e1_e < e2_s #previously whack due to CDS
             
@@ -240,6 +246,9 @@ class Transcript:
             if not tuple([e1_e, e2_s]) in added_LR_intron_intervals:
                 added_LR_intron_intervals[tuple([e1_e, e2_s])] = 1
                 LR_intron_interval_tree.insert_interval(Interval(e1_e, e2_s))
+            
+            #add exons to exon graph
+            exon_G.add_edge(e1_tup, e2_tup)
 
             #add the introns
             if self.strand == 1:
@@ -255,6 +264,14 @@ class Transcript:
                 
                 if not gene_inf in _5p_to_gene_info[e1_e]: _5p_to_gene_info[e1_e].append(gene_inf)
                 if not gene_inf in _3p_to_gene_info[e2_s]: _3p_to_gene_info[e2_s].append(gene_inf)
+                
+                ss_G.add_node(e1_s, type=3)
+                ss_G.add_node(e1_e, type=5)
+                ss_G.add_node(e2_s, type=3)
+                ss_G.add_node(e2_e, type=5)
+                ss_G.add_edge(e1_e , e2_s, type='intron')
+                ss_G.add_edge(e2_s , e2_e, type='exon')
+                ss_G.add_edge(e1_s , e1_e, type='exon')
 
             else:
                 #REV
@@ -269,6 +286,14 @@ class Transcript:
                 
                 if not gene_inf in _5p_to_gene_info[e2_s]: _5p_to_gene_info[e2_s].append(gene_inf)
                 if not gene_inf in _3p_to_gene_info[e1_e]: _3p_to_gene_info[e1_e].append(gene_inf)
+                
+                ss_G.add_node(e2_e, type=3)
+                ss_G.add_node(e2_s, type=5)
+                ss_G.add_node(e1_e, type=3)
+                ss_G.add_node(e1_s, type=5) #note, last one will be not actually a 5'...
+                ss_G.add_edge(e2_s , e1_e, type='intron')
+                ss_G.add_edge(e1_e , e1_s, type='exon')
+                ss_G.add_edge(e2_e , e2_s, type='exon')
                 
         """
         add the last exon
@@ -286,7 +311,16 @@ class Transcript:
         if not e1_s in _exon_e_to_s[e1_e]:
             _exon_e_to_s[e1_e].append(e1_s)
         
-        
+        """
+        add gene info to the END of the last exon, 
+        even though not techinically a 5'
+        """
+        if self.strand == 1:
+            if not e1_e in _5p_to_gene_info: _5p_to_gene_info[e1_e] = []
+            if not gene_inf in _5p_to_gene_info[e1_e]: _5p_to_gene_info[e1_e].append(gene_inf)
+        else: 
+            if not e1_s in _5p_to_gene_info: _5p_to_gene_info[e1_s] = []
+            if not gene_inf in _5p_to_gene_info[e1_s]: _5p_to_gene_info[e1_s].append(gene_inf)
         
     @classmethod
     def init_from_feature(cls, contig, feature):
