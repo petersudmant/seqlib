@@ -25,7 +25,7 @@ if __name__=="__main__":
     fa = FastaHack(o.fn_fasta)
     contigs = [contig for contig in fa.names]
 
-    contigs = ["chr19"]
+    #contigs = ["chr19"]
     if o.force_contig:
         contigs = [c for c in contigs if c==o.force_contig]
     print contigs
