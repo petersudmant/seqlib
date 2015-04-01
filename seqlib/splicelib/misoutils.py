@@ -299,7 +299,7 @@ class MisoUtils(object):
             AFEs.append([us_fex,ds_fex])
         return AFEs
 
-    def define_AFE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+    def __define_AFE_events(self, fn_out_gff, fn_out_bed, source="annot"):
         F_gff = open(fn_out_gff,'w')
         F_bed = open(fn_out_bed,'w')
 
@@ -349,8 +349,9 @@ class MisoUtils(object):
             if self.overlap(us_lex,ds_lex): continue
             ALEs.append([us_lex,ds_lex])
         return ALEs
-
-    def define_ALE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+    
+        
+    def __define_ALE_events(self, fn_out_gff, fn_out_bed, source="annot"):
         F_gff = open(fn_out_gff,'w')
         F_bed = open(fn_out_bed,'w')
 
@@ -369,6 +370,117 @@ class MisoUtils(object):
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
 
+
+    def define_AFE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+        self.define_simple_AFE_events(fn_out_gff, fn_out_bed, source=source)
+
+    def define_ALE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+        self.define_simple_ALE_events(fn_out_gff, fn_out_bed, source=source)
+        
+    """collapse a list of exons into their unique components"""
+    def collapse_exons(self, exs):
+        exs = sorted(exs)
+        
+        collapsed = [exs[0]]
+        
+        for ex in exs:
+            assert ex[0]>=collapsed[-1][0]
+            
+            if ex[0]<collapsed[-1][1]:
+                collapsed[-1][1] = ex[1]
+            else:
+                collapsed.append(ex)
+    
+        return collapsed
+
+    def get_simple_ALE(self, sg, connected_exs, strand):
+        le_s_e, le_e_s, fe_s_e, fe_e_s = sg.get_first_last_exons(strand)
+        i_5p_3p, i_3p_5p, e_5p_3p, e_3p_5p = sg.get_intron_exon_juncs(strand)
+
+        curr_lexs = [ex for ex in connected_exs if ex[0] in le_s_e]
+        
+        if strand=="REV":
+            curr_lexs = sorted(curr_lexs, reverse=True)
+            ex_to_acceptor = lambda x: x[1]
+        else:
+            curr_lexs = sorted(curr_lexs)
+            ex_to_acceptor = lambda x: x[0]
+        
+        lex_uniq_3ps = list(set([ex_to_acceptor(lex) for lex in curr_lexs]))
+        csx_lexs = [sg.get_csx(a_3p, strand, ss_type_3p=True) for a_3p in lex_uniq_3ps]
+
+        ##now collapse lexs to non-overlapping
+        csx_lexs = self.collapse_exons(cs_lexs)
+        
+        """could exclude anything with only 1"""
+        ALEs = csx_lexs
+        
+        return ALEs
+
+    """
+    simple ale/afes are only the first/last exon in question
+    as done my jason... 
+    """
+    def define_simple_ALE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+        F_gff = open(fn_out_gff,'w')
+        F_bed = open(fn_out_bed,'w')
+
+        for contig, sg in self.sgs_by_contig.items():
+            F_R_ex_graphs = { "FWD" : sg.F_exon_G, 
+                              "REV" : sg.R_exon_G }
+            for strand_d, ex_G in F_R_ex_graphs.items():
+                for connected_exs in nx.connected_components(ex_G): 
+                    ALEs = self.get_simple_ALE(sg, connected_exs, strand_d)
+                    EXONS = ALE
+                    exon_paths = {chr(i + ord('A')):[i] for i,ex in enumerate(EXONS)}
+                    trans =  self.make_transcript(sg, contig, strand_d, EXONS)
+                    gff_s = trans.gff_string(exon_paths, source)
+                    bed_s = trans.bed_string(exon_paths, source)
+                    F_gff.write(gff_s)
+                    F_bed.write(bed_s)
+
+    def get_simple_AFE(self, sg, connected_exs, strand):
+        le_s_e, le_e_s, fe_s_e, fe_e_s = sg.get_first_last_exons(strand)
+        i_5p_3p, i_3p_5p, e_5p_3p, e_3p_5p = sg.get_intron_exon_juncs(strand)
+
+        curr_fexs = [ex for ex in connected_exs if ex[0] in fe_s_e]
+        
+        if strand=="REV":
+            curr_fexs = sorted(curr_fexs, reverse=True)
+            ex_to_donor = lambda x: x[0]
+        else:
+            curr_fexs = sorted(curr_fexs)
+            ex_to_donor = lambda x: x[1]
+        
+        ##now collapse fexs to non-overlapping
+        fex_uniq_5ps = list(set([ex_to_donor(fex) for fex in curr_fexs]))
+        csx_fexs = [sg.get_csx(d_5p, strand, ss_type_5p=True) for d_5p in fex_uniq_5ps]
+
+        ##now collapse fexs to non-overlapping
+        csx_fexs = self.collapse_exons(cs_fexs)
+        
+        """could exclude anything with only 1"""
+        AFEs = csx_fexs
+        
+        return AFEs
+        
+    def define_simple_AFE_events(self, fn_out_gff, fn_out_bed, source="annot"):
+        F_gff = open(fn_out_gff,'w')
+        F_bed = open(fn_out_bed,'w')
+
+        for contig, sg in self.sgs_by_contig.items():
+            F_R_ex_graphs = { "FWD" : sg.F_exon_G, 
+                              "REV" : sg.R_exon_G }
+            for strand_d, ex_G in F_R_ex_graphs.items():
+                for connected_exs in nx.connected_components(ex_G): 
+                    AFEs = self.get_simple_AFE(sg, connected_exs, strand_d)
+                    EXONS = AFE
+                    exon_paths = {chr(i + ord('A')):[i] for i,ex in enumerate(EXONS)}
+                    trans =  self.make_transcript(sg, contig, strand_d, EXONS)
+                    gff_s = trans.gff_string(exon_paths, source)
+                    bed_s = trans.bed_string(exon_paths, source)
+                    F_gff.write(gff_s)
+                    F_bed.write(bed_s)
 
     def get_RIs(self, sg, a_3p, d_5ps, strand):
         if strand=="REV":
