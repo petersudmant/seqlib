@@ -380,17 +380,16 @@ class MisoUtils(object):
     """collapse a list of exons into their unique components"""
     def collapse_exons(self, exs):
         exs = sorted(exs)
-        
         collapsed = [exs[0]]
         
         for ex in exs:
             assert ex[0]>=collapsed[-1][0]
             
             if ex[0]<collapsed[-1][1]:
-                collapsed[-1][1] = ex[1]
+                collapsed[-1] = tuple([collapsed[-1][0], ex[1]])
             else:
                 collapsed.append(ex)
-    
+        
         return collapsed
 
     def get_simple_ALE(self, sg, connected_exs, strand):
@@ -410,7 +409,7 @@ class MisoUtils(object):
         csx_lexs = [sg.get_csx(a_3p, strand, ss_type_3p=True) for a_3p in lex_uniq_3ps]
 
         ##now collapse lexs to non-overlapping
-        csx_lexs = self.collapse_exons(cs_lexs)
+        csx_lexs = self.collapse_exons(csx_lexs)
         
         """could exclude anything with only 1"""
         ALEs = csx_lexs
@@ -431,7 +430,7 @@ class MisoUtils(object):
             for strand_d, ex_G in F_R_ex_graphs.items():
                 for connected_exs in nx.connected_components(ex_G): 
                     ALEs = self.get_simple_ALE(sg, connected_exs, strand_d)
-                    EXONS = ALE
+                    EXONS = ALEs
                     exon_paths = {chr(i + ord('A')):[i] for i,ex in enumerate(EXONS)}
                     trans =  self.make_transcript(sg, contig, strand_d, EXONS)
                     gff_s = trans.gff_string(exon_paths, source)
@@ -457,7 +456,7 @@ class MisoUtils(object):
         csx_fexs = [sg.get_csx(d_5p, strand, ss_type_5p=True) for d_5p in fex_uniq_5ps]
 
         ##now collapse fexs to non-overlapping
-        csx_fexs = self.collapse_exons(cs_fexs)
+        csx_fexs = self.collapse_exons(csx_fexs)
         
         """could exclude anything with only 1"""
         AFEs = csx_fexs
@@ -474,7 +473,7 @@ class MisoUtils(object):
             for strand_d, ex_G in F_R_ex_graphs.items():
                 for connected_exs in nx.connected_components(ex_G): 
                     AFEs = self.get_simple_AFE(sg, connected_exs, strand_d)
-                    EXONS = AFE
+                    EXONS = AFEs
                     exon_paths = {chr(i + ord('A')):[i] for i,ex in enumerate(EXONS)}
                     trans =  self.make_transcript(sg, contig, strand_d, EXONS)
                     gff_s = trans.gff_string(exon_paths, source)
