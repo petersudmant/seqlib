@@ -11,7 +11,7 @@ class MisoUtils(object):
         self.contig_sizes = kwargs.get("contig_sizes")
     
     def make_transcript(self, sg, contig, strand_d, EXONS): 
-        EXON_str =  ":".join(["%d,%d"%(e[0],e[1]) for e in EXONS])
+        EXON_str =  ":".join(["%d-%d"%(e[0],e[1]) for e in EXONS])
         FEATURE_ID = "{contig}:{es}".format(contig=contig, es=EXON_str)
         """ 
         key information off of first exon 5p
