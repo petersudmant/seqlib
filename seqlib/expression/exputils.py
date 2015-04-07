@@ -80,9 +80,10 @@ class RsemParser(object):
             curr_fpkms = {}
             for ID in self.geneName_to_geneIDs[g]:
                 fpkms = self.gene_fpkms.loc[ID]
-                if filter_to_max and np.mean(fpkms.values)>curr_mx:
-                    curr_fpkms = {tuple([g,ID]):fpkms}
-                    curr_mx = np.mean(fpkms.values)
+                if filter_to_max: 
+                    if np.mean(fpkms.values)>curr_mx:
+                        curr_fpkms = {tuple([g,ID]):fpkms}
+                        curr_mx = np.mean(fpkms.values)
                 else: 
                     curr_fpkms[tuple([g,ID])] = fpkms
 
