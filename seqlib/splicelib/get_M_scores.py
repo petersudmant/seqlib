@@ -69,6 +69,13 @@ if __name__=="__main__":
         s1, s2 = comp.split("_vs_")
         t=pd.read_csv(fn_compare, header=0, sep="\t")
         t = t[['event_name','bayes_factor','sample1_posterior_mean','sample2_posterior_mean']]
+        """
+        remove any dudes with ","s, ie, non-binary events
+        """
+        t = t[t.apply(lambda x: not "," in str(x['bayes_factor']), axis=1)]
+        t['sample1_posterior_mean'] = t['sample1_posterior_mean'].astype("float")
+        t['sample2_posterior_mean'] = t['sample2_posterior_mean'].astype("float")
+        t['bayes_factor'] = t['bayes_factor'].astype("float")
         t=t.set_index(['event_name'])
         t_by_comparison[tuple([s1,s2])] = t
         if events:
