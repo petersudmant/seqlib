@@ -4,6 +4,55 @@ import networkx as nx
 
 from transcript import Transcript
 
+
+"""
+MISO PSI refers to, proportion supporting isoform A
+so, given the conventions I have here, MISO PSI (mPSI) is...
+
+SE, A=[0,2], B=[0,1,2], PSI=1-mPSI
+A3SS A=[0,1], B=[0,2] and 2 is longer, so PSI=1-mPSI
+A5SS A=[0,2], B=[1,2] and 1 is longer, so, PSI=1-PSI
+ALE RANDOM!
+AFE A=0, B=1, and A is upstream of B of PSI=PSI
+RI
+MXE
+
+
+###SEEEM TO BE SOME REPEATED ALESS????
+"""
+
+
+"""
+SE +
+A ||||||-------||||------|||||||
+B ||||||-----------------|||||||
+
+A3SS +
+A ||||||--------------|||||||||
+B ||||||-----------------||||||
+
+A5SS +
+A ||||||||||-------------||||||
+B ||||||-----------------||||||
+
+AFE +
+A |||||------------->
+B         |||||----->
+
+ALE +
+A --------------||||||
+B ----|||||
+
+RI+
+A ||||||||||||||||||||||
+B |||||-----------||||||
+
+MXE+ use upstream as A
+A |||||----||||---------||||---------||||
+B |||||----------||||----------|||---||||
+"""
+
+
 class MisoUtils(object):
 
     def __init__(self, **kwargs):
