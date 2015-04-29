@@ -180,11 +180,10 @@ class MisoUtils(object):
                              "REV" : sg.R_5p_3p_ss }
             for strand_d, ss_juncs in F_R_ss_juncs.items():
                 for d_5p, a_3ps in ss_juncs.iteritems(): 
-                    
                     A3SSs = self.get_A3SS(sg, d_5p, a_3ps, strand_d)
                     for A3SS in A3SSs:
                         us_exon, alt_us_exon, alt_ds_exon = A3SS
-                        exon_paths = {"A":[0,2], "B":[0,1]}
+                        exon_paths = {"A":[0,1], "B":[0,2]}
                         EXONS  = [us_exon, alt_us_exon, alt_ds_exon]
                         trans =  self.make_transcript(sg, contig, strand_d, EXONS)
                         
