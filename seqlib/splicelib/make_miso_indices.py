@@ -25,7 +25,6 @@ if __name__=="__main__":
     fa = FastaHack(o.fn_fasta)
     contigs = [contig for contig in fa.names]
 
-    #contigs = ["chr19"]
     if o.force_contig:
         contigs = [c for c in contigs if c==o.force_contig]
     print contigs
@@ -45,7 +44,7 @@ if __name__=="__main__":
 
     m_util.define_SE_events("{outdir}/gff/SE.gff".format(outdir=o.fn_out_dir),
                             "{outdir}/bed/SE.bed".format(outdir=o.fn_out_dir))
-
+    
     m_util.define_A3SS_events("{outdir}/gff/A3SS.gff".format(outdir=o.fn_out_dir),
                               "{outdir}/bed/A3SS.bed".format(outdir=o.fn_out_dir))
     
