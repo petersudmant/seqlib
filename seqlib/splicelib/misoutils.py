@@ -17,7 +17,6 @@ AFE A=0, B=1, and A is upstream of B of PSI=PSI
 RI
 MXE
 
-
 ###SEEEM TO BE SOME REPEATED ALESS????
 """
 
@@ -133,7 +132,7 @@ class MisoUtils(object):
                     SEs = self.get_SE(sg, d_5p, a_3ps, strand_d)
                     for SE in SEs:
                         us_exon, alt_exon, ds_exon = SE
-                        exon_paths = {"A":[0,2], "B":[0,1,2]}
+                        exon_paths = {"A":[0,1,2], "B":[0,2]}
                         EXONS  = [us_exon, alt_exon, ds_exon]
                         trans =  self.make_transcript(sg, contig, strand_d, EXONS) 
                         
@@ -185,7 +184,7 @@ class MisoUtils(object):
                     A3SSs = self.get_A3SS(sg, d_5p, a_3ps, strand_d)
                     for A3SS in A3SSs:
                         us_exon, alt_us_exon, alt_ds_exon = A3SS
-                        exon_paths = {"A":[0,1], "B":[0,2]}
+                        exon_paths = {"A":[0,2], "B":[0,1]}
                         EXONS  = [us_exon, alt_us_exon, alt_ds_exon]
                         trans =  self.make_transcript(sg, contig, strand_d, EXONS)
                         
@@ -237,7 +236,7 @@ class MisoUtils(object):
                     A5SSs = self.get_A5SS(sg, a_3p, d_5ps, strand_d)
                     for A5SS in A5SSs:
                         alt_us_exon, alt_ds_exon, ds_exon = A5SS
-                        exon_paths = {"A":[0,2], "B":[1,2]}
+                        exon_paths = {"A":[1,2], "B":[0,2]}
                         EXONS  = [alt_us_exon, alt_ds_exon, ds_exon]
                         trans =  self.make_transcript(sg, contig, strand_d, EXONS)
                         
@@ -460,6 +459,18 @@ class MisoUtils(object):
         ##now collapse lexs to non-overlapping
         csx_lexs = self.collapse_exons(csx_lexs)
         
+        """
+        now, resort so in the correct order, ie, distal than proximal
+        ALE +
+        A --------------||||||
+        B ----|||||
+        """
+
+        if strand=="REV":
+            csx_lexs = sorted(csx_lexs)
+        else:
+            csx_lexs = sorted(csx_lexs, reverse=True) 
+
         """could exclude anything with only 1"""
         ALEs = csx_lexs
         
@@ -467,7 +478,7 @@ class MisoUtils(object):
 
     """
     simple ale/afes are only the first/last exon in question
-    as done my jason... 
+    as done by jason... 
     """
     def define_simple_ALE_events(self, fn_out_gff, fn_out_bed, source="annot"):
         F_gff = open(fn_out_gff,'w')
@@ -480,12 +491,13 @@ class MisoUtils(object):
                 for connected_exs in nx.connected_components(ex_G): 
                     ALEs = self.get_simple_ALE(sg, connected_exs, strand_d)
                     EXONS = ALEs
-                    exon_paths = {chr(i + ord('A')):[i] for i,ex in enumerate(EXONS)}
-                    trans =  self.make_transcript(sg, contig, strand_d, EXONS)
-                    gff_s = trans.gff_string(exon_paths, source)
-                    bed_s = trans.bed_string(exon_paths, source)
-                    F_gff.write(gff_s)
-                    F_bed.write(bed_s)
+                    if len(ALEs)>1:
+                        exon_paths = {chr(i + ord('A')):[i] for i,ex in enumerate(EXONS)}
+                        trans =  self.make_transcript(sg, contig, strand_d, EXONS)
+                        gff_s = trans.gff_string(exon_paths, source)
+                        bed_s = trans.bed_string(exon_paths, source)
+                        F_gff.write(gff_s)
+                        F_bed.write(bed_s)
 
     def get_simple_AFE(self, sg, connected_exs, strand):
         le_s_e, le_e_s, fe_s_e, fe_e_s = sg.get_first_last_exons(strand)
@@ -507,6 +519,18 @@ class MisoUtils(object):
         ##now collapse fexs to non-overlapping
         csx_fexs = self.collapse_exons(csx_fexs)
         
+        """ 
+        now, resort so in the correct order, ie, distal than proximal
+        AFE +
+        A |||||------------->
+        B         |||||----->
+        """
+
+        if strand=="REV":
+            csx_fexs = sorted(csx_fexs, reverse=True) 
+        else:
+            csx_fexs = sorted(csx_fexs)
+        
         """could exclude anything with only 1"""
         AFEs = csx_fexs
         
@@ -523,12 +547,13 @@ class MisoUtils(object):
                 for connected_exs in nx.connected_components(ex_G): 
                     AFEs = self.get_simple_AFE(sg, connected_exs, strand_d)
                     EXONS = AFEs
-                    exon_paths = {chr(i + ord('A')):[i] for i,ex in enumerate(EXONS)}
-                    trans =  self.make_transcript(sg, contig, strand_d, EXONS)
-                    gff_s = trans.gff_string(exon_paths, source)
-                    bed_s = trans.bed_string(exon_paths, source)
-                    F_gff.write(gff_s)
-                    F_bed.write(bed_s)
+                    if len(EXONS)>1:
+                        exon_paths = {chr(i + ord('A')):[i] for i,ex in enumerate(EXONS)}
+                        trans =  self.make_transcript(sg, contig, strand_d, EXONS)
+                        gff_s = trans.gff_string(exon_paths, source)
+                        bed_s = trans.bed_string(exon_paths, source)
+                        F_gff.write(gff_s)
+                        F_bed.write(bed_s)
 
     def get_RIs(self, sg, a_3p, d_5ps, strand):
         if strand=="REV":
@@ -565,7 +590,7 @@ class MisoUtils(object):
                     RIs = self.get_RIs(sg, a_3p, d_5ps, strand_d)
                     for RI in RIs:
                         EXONS = RI #us_exon, ds_ex, RI_exon
-                        exon_paths = {"A":[0,1], "B":[2]}
+                        exon_paths = {"A":[2], "B":[0,1]}
                         trans =  self.make_transcript(sg, contig, strand_d, EXONS)
                         gff_s = trans.gff_string(exon_paths, source)
                         bed_s = trans.bed_string(exon_paths, source)
