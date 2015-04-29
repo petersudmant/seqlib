@@ -52,6 +52,12 @@ B |||||----------||||----------|||---||||
 """
 
 
+def alpha_code(i):
+    prefix=""
+    if i>24:
+        prefix=chr(int(i/25)+ord('A'))
+    return "%s%s"%(prefix, chr((i%25)+ord('A')))
+
 class MisoUtils(object):
 
     def __init__(self, **kwargs):
@@ -491,7 +497,7 @@ class MisoUtils(object):
                     ALEs = self.get_simple_ALE(sg, connected_exs, strand_d)
                     EXONS = ALEs
                     if len(ALEs)>1:
-                        exon_paths = {chr(i + ord('A')):[i] for i,ex in enumerate(EXONS)}
+                        exon_paths = {alpha_code(i):[i] for i,ex in enumerate(EXONS)}
                         trans =  self.make_transcript(sg, contig, strand_d, EXONS)
                         gff_s = trans.gff_string(exon_paths, source)
                         bed_s = trans.bed_string(exon_paths, source)
@@ -547,7 +553,7 @@ class MisoUtils(object):
                     AFEs = self.get_simple_AFE(sg, connected_exs, strand_d)
                     EXONS = AFEs
                     if len(EXONS)>1:
-                        exon_paths = {chr(i + ord('A')):[i] for i,ex in enumerate(EXONS)}
+                        exon_paths = {alpha_code(i):[i] for i,ex in enumerate(EXONS)}
                         trans =  self.make_transcript(sg, contig, strand_d, EXONS)
                         gff_s = trans.gff_string(exon_paths, source)
                         bed_s = trans.bed_string(exon_paths, source)
