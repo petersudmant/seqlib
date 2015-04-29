@@ -55,10 +55,12 @@ if __name__=="__main__":
     parser.add_argument("--fn_MISO_comparisons", nargs="+")
     parser.add_argument("--sample_order", nargs="+")
     parser.add_argument("--MISO_ids")
+    parser.add_argument("--type")
     parser.add_argument("--fn_out")
     o = parser.parse_args()
     
     T_ids = pd.read_csv(o.MISO_ids, header=0,sep="\t")
+    T_ids = T_ids[T_ids['type']==o.type]
     T_ids.set_index("compressed_ID")
 
     t_by_comparison = {}
