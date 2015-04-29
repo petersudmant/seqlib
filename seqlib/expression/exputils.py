@@ -4,6 +4,66 @@ from fuzzywuzzy import process
 import pandas as pd
 import numpy as np
 
+
+class ID_dict_cls(object):
+
+    def __init__(self, **kwargs):
+        self.geneID_to_geneName = kwargs.get("geneID_to_geneName")
+        self.transcriptID_to_geneName= kwargs.get("transcriptID_to_geneName") 
+        self.geneName_to_transcriptIDs  = kwargs.get("geneName_to_transcriptIDs")
+        self.geneName_to_geneIDs = kwargs.get("geneName_to_geneIDs")
+        self.geneID_to_loc = kwargs.get("geneID_to_loc")
+        self.transcriptID_to_loc = kwargs.get("transcriptID_to_loc")
+        
+def get_ID_dicts(fn_gff):
+    
+    geneID_to_geneName = {}
+    geneID_to_loc = {}
+
+    transcriptID_to_geneName = {}
+    transcriptID_to_loc = {}
+
+    geneName_to_transcriptIDs = defaultdict(list)
+    geneName_to_geneIDs = defaultdict(list)
+     
+    for l in open(fn_gff):
+        if l[0]!="#":
+            rest,info = l.rstrip().rsplit(None,1)
+            contig, source, type, rest = l.rstrip().split(None,3)
+
+            if type == "transcript":
+                start, end, o1, strand, o2, info = rest.split()
+                start, end = int(start), int(end)
+                idict = {d.split("=")[0]:d.split("=")[1] for d in info.split(";")}
+                if "gene_name" in idict:
+                    gene_name = idict['gene_name']
+                else:
+                    gene_name = idict['ID']
+                
+                geneID = idict['geneID']
+                geneID_to_geneName[geneID] = gene_name
+                transcriptID_to_geneName[idict['ID']] = gene_name 
+
+                transcriptID_to_loc[idict['ID']] = tuple([contig,start,end])
+                if not geneID in geneID_to_loc: 
+                    geneID_to_loc[geneID] = tuple([contig, start, end])
+                else:
+                    old_tup = geneID_to_loc[geneID] 
+                    geneID_to_loc[geneID] = tuple([contig, min(start,old_tup[1]), max(end,old_tup[2])])
+
+                if not idict['ID'] in geneName_to_transcriptIDs[gene_name]:
+                    geneName_to_transcriptIDs[gene_name].append(idict['ID'])
+
+                if not geneID in geneName_to_geneIDs[gene_name]:
+                    geneName_to_geneIDs[gene_name].append(geneID)
+    
+    return ID_dict_cls(geneID_to_geneName=geneID_to_geneName, 
+                       transcriptID_to_geneName=transcriptID_to_geneName, 
+                       geneName_to_transcriptIDs=geneName_to_transcriptIDs, 
+                       geneName_to_geneIDs=geneName_to_geneIDs,
+                       geneID_to_loc=geneID_to_loc,
+                       transcriptID_to_loc=transcriptID_to_loc)
+
 class RsemParser(object):
 
     def __init__(self,fn_gff, gene_fns, sample_names, sample_groups, alt_names=None):
@@ -18,30 +78,14 @@ class RsemParser(object):
         else:
             self.alt_names = {self.samples[i]:alt_names[i] for i in range(len(alt_names))}
         
-        geneID_to_geneName = {}
-        transcriptID_to_geneName = {}
-        geneName_to_transcriptIDs = defaultdict(list)
-        geneName_to_geneIDs = defaultdict(list)
-         
-        for l in open(fn_gff):
-            if l[0]!="#":
-                rest,info = l.rstrip().rsplit(None,1)
-                if ";" in info:
-                    idict = {d.split("=")[0]:d.split("=")[1] for d in info.split(";")}
-                    if "gene_name" in idict:
-                        geneID_to_geneName[idict['geneID']] = idict['gene_name']
-                        transcriptID_to_geneName[idict['ID']] = idict['gene_name']
-                        if not idict['ID'] in geneName_to_transcriptIDs[idict['gene_name']]:
-                            geneName_to_transcriptIDs[idict['gene_name']].append(idict['ID'])
-                        if not idict['geneID'] in geneName_to_geneIDs[idict['gene_name']]:
-                            geneName_to_geneIDs[idict['gene_name']].append(idict['geneID'])
         
-        print("%d genes parsed"%(len(geneID_to_geneName.keys())), file=sys.stderr)
+        ID_dicts = get_ID_dicts(fn_gff)
+        self.ID_dicts = ID_dicts
 
-        self.geneID_to_geneName = geneID_to_geneName
-        self.transcriptID_to_geneName = transcriptID_to_geneName
-        self.geneName_to_transcriptIDs =  geneName_to_transcriptIDs
-        self.geneName_to_geneIDs =  geneName_to_geneIDs
+        self.geneID_to_geneName = ID_dicts.geneID_to_geneName
+        self.transcriptID_to_geneName = ID_dicts.transcriptID_to_geneName
+        self.geneName_to_transcriptIDs =  ID_dicts.geneName_to_transcriptIDs
+        self.geneName_to_geneIDs =  ID_dicts.geneName_to_geneIDs
         self.geneNames = list(self.geneName_to_geneIDs.keys())
 
         gene_fpkms=None
