@@ -11,6 +11,7 @@ input.file1 = cmdArg("fn_input_1")
 output.file1 = cmdArg("fn_output_1")
 input.file2 = cmdArg("fn_input_2")
 output.file2 = cmdArg("fn_output_2")
+output.file3 = cmdArg("fn_output_3")
 title=cmdArg("title")
 
 t1=read.table(input.file1,header=TRUE,sep='\t')
@@ -32,6 +33,10 @@ g=ggplot(t2)
 g+geom_boxplot(aes(x=stype,y=delta_psi,color=comparison),scale='width',position=position_dodge(width=1))+geom_point(aes(x=stype,y=delta_psi,color=comparison,fill=comparison),size=.8,alpha=.1,position=position_jitterdodge(dodge.width=1,jitter.height=0))+theme_bw()+scale_color_brewer(palette="Set1")+coord_flip()+scale_y_continuous(bquote(paste(Delta, Psi, " ",.(title))))+scale_x_discrete("")
 dev.off()
 
+pdf(output.file3,width=4,height=4)
+g=ggplot(t2)
+g+geom_boxplot(aes(x=stype,y=delta_psi,color=comparison),notch=TRUE,scale='width',position=position_dodge(width=1))+geom_point(aes(x=stype,y=delta_psi,color=comparison,fill=comparison),size=.8,alpha=.1,position=position_jitterdodge(dodge.width=1,jitter.height=0))+theme_bw()+scale_color_brewer(palette="Set1")+coord_flip()+scale_y_continuous(bquote(paste(Delta, Psi, " ",.(title))))+scale_x_discrete("")
+dev.off()
 
 #g=ggplot(t)
 #g+geom_bar(aes(x=stype,y=significant,fill=comparison),stat='identity',position='dodge')+theme_bw()+coord_flip()+scale_fill_brewer(palette="Set1")
