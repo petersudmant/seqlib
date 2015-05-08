@@ -24,7 +24,7 @@ if __name__=="__main__":
     
     fa = FastaHack(o.fn_fasta)
     contigs = [contig for contig in fa.names]
-
+    
     if o.force_contig:
         contigs = [c for c in contigs if c==o.force_contig]
     print contigs
@@ -37,10 +37,14 @@ if __name__=="__main__":
         os.mkdir("{outdir}/gff".format(outdir=o.fn_out_dir))
     if not os.path.exists("{outdir}/bed".format(outdir=o.fn_out_dir)):
         os.mkdir("{outdir}/bed".format(outdir=o.fn_out_dir))
+    if not os.path.exists("{outdir}/info".format(outdir=o.fn_out_dir)):
+        os.mkdir("{outdir}/info".format(outdir=o.fn_out_dir))
 
     splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, 
                                                               contigs=contigs)
-    m_util = mu.MisoUtils(sg_by_contig = splice_graphs_by_contig, contig_sizes = contig_sizes)
+    m_util = mu.MisoUtils(sg_by_contig = splice_graphs_by_contig,
+                          contig_sizes = contig_sizes,
+                          fn_info = "{outdir}/info/info.df".format(outdir=o.fn_out_dir))
 
     m_util.define_SE_events("{outdir}/gff/SE.gff".format(outdir=o.fn_out_dir),
                             "{outdir}/bed/SE.bed".format(outdir=o.fn_out_dir))
@@ -62,5 +66,5 @@ if __name__=="__main__":
     
     m_util.define_RI_events("{outdir}/gff/RI.gff".format(outdir=o.fn_out_dir),
                             "{outdir}/bed/RI.bed".format(outdir=o.fn_out_dir))
-
     
+    m_util.output_info()

@@ -106,7 +106,6 @@ class Transcript:
                                             exon_starts = ",".join(["%d"%(e[0]-min_p) for e in curr_exons]) ))
 
         return "%s\n"%("\n".join(bed_lines))
-
     def gff_string(self, exon_paths, source):
         """
         gene / mRNA / exon / exon

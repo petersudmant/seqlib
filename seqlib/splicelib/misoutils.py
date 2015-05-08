@@ -1,6 +1,7 @@
 import pdb
 import itertools
 import networkx as nx
+import pandas as pd
 
 from transcript import Transcript
 
@@ -18,6 +19,19 @@ RI
 MXE
 
 ###SEEEM TO BE SOME REPEATED ALESS????
+
+####!
+
+!!!!!!
+
+NOTE:
+||||||||||--------------||||||
+             |||||||----|||||
+             Good AFE/ALE
+
+||||||-------|||||------- 
+             |||||-------
+             not so good AFE/ALE
 """
 
 
@@ -58,12 +72,45 @@ def alpha_code(i):
         prefix=chr(int(i/25)+ord('A'))
     return "%s%s"%(prefix, chr((i%25)+ord('A')))
 
-class MisoUtils(object):
+class MISO_transcript_info(object):
+    def __init__(self, fn):
+        self.fn = fn
+        self.inf_rows = []
+        
+    def add_info(self, transcript, **kwargs):
+        
+        exonSize=kwargs.get("exonSize", -1)
+        stype=kwargs.get("stype")
+        
+        ID=transcript.feature_ID
+        gene_ID=transcript.gene_ID
+        gene_name=transcript.gene_name
 
+        self.inf_rows.append({"ID":transcript.feature_ID,
+                              "type":stype,
+                              "geneID":transcript.gene_ID,
+                              "geneName":transcript.gene_name,
+                              "contig":transcript.contig,
+                              "start":transcript.g_start,
+                              "end":transcript.g_end,
+                              "strand":transcript.strand,
+                              "exonSize":exonSize})
+    def output(self):
+        df = pd.DataFrame(self.inf_rows)
+        columns =  ["ID", "contig", "start", "end", "strand", "exonSize", "geneName", "geneID", "type"]
+        df.to_csv(self.fn, sep="\t", index=False, columns = columns)
+
+class MisoUtils(object):
+    
     def __init__(self, **kwargs):
         self.sgs_by_contig = kwargs.get("sg_by_contig")
         self.contig_sizes = kwargs.get("contig_sizes")
-    
+        self.fn_info = kwargs.get("fn_info")
+        self.MISO_tr_inf = MISO_transcript_info(self.fn_info)
+
+    def output_info(self):
+        self.MISO_tr_inf.output()
+
     def make_transcript(self, sg, contig, strand_d, EXONS): 
         EXON_str =  ":".join(["%d-%d"%(e[0],e[1]) for e in EXONS])
         FEATURE_ID = "{contig}:{es}".format(contig=contig, es=EXON_str)
@@ -146,6 +193,11 @@ class MisoUtils(object):
                         bed_s = trans.bed_string(exon_paths, source)
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
+                        
+                        self.MISO_tr_inf.add_info(trans, 
+                                                  stype="SE", 
+                                                  exonSize=alt_exon[1]-alt_exon[0])
+                                                  
 
     def get_A3SS(self, sg, d_5p, a_3ps, strand):
         """
@@ -198,6 +250,11 @@ class MisoUtils(object):
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
 
+                        e_size = strand_d=="FWD" and alt_ds_exon[0]-alt_us_exon[0] or alt_us_exon[1]-alt_ds_exon[1]
+                        self.MISO_tr_inf.add_info(trans, 
+                                                  stype="A3SS", 
+                                                  exonSize=e_size)
+
     def get_A5SS(self, sg, a_3p, d_5ps, strand):
         """
         test if any of the a_3ps share exon ends 
@@ -249,6 +306,11 @@ class MisoUtils(object):
                         bed_s = trans.bed_string(exon_paths, source)
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
+
+                        e_size = strand_d=="FWD" and alt_ds_exon[1]-alt_us_exon[1] or alt_us_exon[0]-alt_ds_exon[0]
+                        self.MISO_tr_inf.add_info(trans, 
+                                                  stype="A5SS", 
+                                                  exonSize=e_size)
     
     def get_MXE(self, sg, d_5p, a_3ps, strand):
         if strand=="REV":
@@ -320,6 +382,9 @@ class MisoUtils(object):
                         bed_s = trans.bed_string(exon_paths, source)
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
+                        
+                        self.MISO_tr_inf.add_info(trans, 
+                                                  stype="MXE")
 
     def overlap(self, ex1, ex2):
         #exons in s,e format 
@@ -504,6 +569,9 @@ class MisoUtils(object):
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
 
+                        self.MISO_tr_inf.add_info(trans, 
+                                                  stype="ALE" )
+
     def get_simple_AFE(self, sg, connected_exs, strand):
         le_s_e, le_e_s, fe_s_e, fe_e_s = sg.get_first_last_exons(strand)
         i_5p_3p, i_3p_5p, e_5p_3p, e_3p_5p = sg.get_intron_exon_juncs(strand)
@@ -560,6 +628,9 @@ class MisoUtils(object):
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
 
+                        self.MISO_tr_inf.add_info(trans, 
+                                                  stype="AFE")
+
     def get_RIs(self, sg, a_3p, d_5ps, strand):
         if strand=="REV":
             d_5ps = sorted(d_5ps, reverse=strand=="REV")
@@ -601,6 +672,12 @@ class MisoUtils(object):
                         bed_s = trans.bed_string(exon_paths, source)
                         F_gff.write(gff_s)
                         F_bed.write(bed_s)
+
+                        e_size = strand_d=="FWD" and EXONS[1][0]-EXONS[0][1] or EXONS[0][0]-EXONS[1][1]
+
+                        self.MISO_tr_inf.add_info(trans, 
+                                                  stype="RI", 
+                                                  exonSize=e_size)
 
 
 
