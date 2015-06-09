@@ -64,6 +64,24 @@ def get_ID_dicts(fn_gff):
                        geneID_to_loc=geneID_to_loc,
                        transcriptID_to_loc=transcriptID_to_loc)
 
+def get_gene_ID_table(fn_gff):
+
+    ID_dicts = get_ID_dicts(fn_gff)
+    
+    rows = [] 
+    for geneID, geneName in ID_dicts.geneID_to_geneName.items():
+        d = {"geneID":geneID,
+             "geneName":geneName,
+             "contig":ID_dicts.geneID_to_loc[geneID][0],
+             "start":ID_dicts.geneID_to_loc[geneID][1],
+             "end":ID_dicts.geneID_to_loc[geneID][2]}
+        rows.append(d)
+
+    return pd.DataFrame(rows)
+
+
+
+
 class RsemParser(object):
 
     def __init__(self,fn_gff, gene_fns, sample_names, sample_groups, alt_names=None):
