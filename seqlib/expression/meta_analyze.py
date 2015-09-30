@@ -19,6 +19,9 @@ class coverage_data():
         self.g = g
         self.strand = self.g.strand
         
+        l_UTR_exons = []
+        r_UTR_exons = []
+        
         if typ == "longest_coding_transcript":
             longest_t = None
             longest_l = None
@@ -42,8 +45,7 @@ class coverage_data():
             NEED TO MAKE l_UTR_exons and r_UTR_exons
             """
             coding_ex_l, coding_ex_r = self.coding_exons[0], self.coding_exons[-1]
-            l_UTR_exons = []
-            r_UTR_exons = []
+            
             for ex in self.exons:
                 if ex[1]>coding_ex_l[0]:
                     l_UTR_exons.append([ex[0],coding_ex_l[0]])
@@ -64,11 +66,11 @@ class coverage_data():
             assert True, "method %s not supported"%(typ)
         
         if g.strand:
-            self.UTR_5p_exons = self.l_UTR_exons
-            self.UTR_3p_exons = self.r_UTR_exons
+            self.UTR_5p_exons = l_UTR_exons
+            self.UTR_3p_exons = r_UTR_exons
         else:
-            self.UTR_5p_exons = self.r_UTR_exons
-            self.UTR_3p_exons = self.l_UTR_exons
+            self.UTR_5p_exons = r_UTR_exons
+            self.UTR_3p_exons = l_UTR_exons
         
         self.UTR_5p_cvg = None
         self.UTR_3p_cvg = None
