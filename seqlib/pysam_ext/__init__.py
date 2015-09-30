@@ -1,0 +1,1 @@
+modulename = "pysam_ext"
