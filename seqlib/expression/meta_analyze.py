@@ -4,10 +4,13 @@ import numpy as np
 import scipy.stats as scp_stats
 import pandas as pd
 
+import pysam_ext.pysam_ext as pysam_ext
+
 import logging
 import pysam
 import pdb
 import math
+import time
 
 class coverage_data():
 
@@ -35,13 +38,25 @@ class coverage_data():
             self.exons = exons
             self.coding_exons = coding_exons
             
-            self.l_UTR_s = exons[0][0] 
-            self.l_UTR_e = coding_exons[0][0]
-            self.l_UTR_l = self.l_UTR_e - self.l_UTR_s
-
-            self.r_UTR_s = coding_exons[-1][1]
-            self.r_UTR_e = exons[-1][1]
-            self.r_UTR_l = self.r_UTR_e - self.r_UTR_s
+            """
+            NEED TO MAKE l_UTR_exons and r_UTR_exons
+            """
+            coding_ex_l, coding_ex_r = self.coding_exons[0], self.coding_exons[-1]
+            l_UTR_exons = []
+            r_UTR_exons = []
+            for ex in self.exons:
+                if ex[1]>coding_ex_l[0]:
+                    l_UTR_exons.append([ex[0],coding_ex_l[0]])
+                    break
+                else:
+                    l_UTR_exons.append(ex)
+            
+            for ex in self.exons[::-1]:
+                if ex[0]<coding_ex_r[1]:
+                    r_UTR_exons.append([coding_ex_r[1],ex[1]])
+                    break
+                else:
+                    r_UTR_exons.append(ex)
             
             self.CDS_l = longest_t.coding_end - longest_t.coding_beg
             self.contig = "chr" in g.contig and g.contig or "chr%s"%g.contig
@@ -49,15 +64,11 @@ class coverage_data():
             assert True, "method %s not supported"%(typ)
         
         if g.strand:
-            self.UTR_5p_l = self.l_UTR_l
-            self.UTR_3p_l = self.r_UTR_l
-            self.UTR_5p_s, self.UTR_5p_e = self.l_UTR_s, self.l_UTR_e 
-            self.UTR_3p_s, self.UTR_3p_e = self.r_UTR_s, self.r_UTR_e 
+            self.UTR_5p_exons = self.l_UTR_exons
+            self.UTR_3p_exons = self.r_UTR_exons
         else:
-            self.UTR_5p_l = self.r_UTR_l
-            self.UTR_3p_l = self.l_UTR_l
-            self.UTR_5p_s, self.UTR_5p_e = self.r_UTR_s, self.r_UTR_e 
-            self.UTR_3p_s, self.UTR_3p_e = self.l_UTR_s, self.l_UTR_e 
+            self.UTR_5p_exons = self.r_UTR_exons
+            self.UTR_3p_exons = self.l_UTR_exons
         
         self.UTR_5p_cvg = None
         self.UTR_3p_cvg = None
@@ -71,36 +82,38 @@ class coverage_data():
         else:
             return False
 
-    def get_seg_cvg(self, bamfile, contig, s, e):
+    def c_get_seg_cvg(self, bamfile, contig, s, e):
         iter = bamfile.pileup(contig, s, e, truncate = True)
-        cvg = np.zeros(e-s)
+        cvg = pysam_ext.get_seg_cvg(iter, e-s)
+        return cvg
+
+    def get_seg_cvg(self, bamfile, contig, s, e):
+        return self.c_get_seg_cvg(bamfile, contig, s, e)
+        """
+        iter = bamfile.pileup(contig, s, e, truncate = True)
+        cvg = np.zeros(e-s, dtype=np.int)
         for col in iter:
             n_non_del = np.sum(np.array([read.is_del==0 for read in col.pileups]))
             cvg[col.pos-s] = n_non_del
+        print("py: %d %f"%(np.sum(cvg),t))
         return cvg
+        """
     
-    def get_UTR_cvg(self, bamfile):
-        self.UTR_5p_cvg = self.get_seg_cvg(bamfile, 
-                                           self.contig, 
-                                           self.UTR_5p_s, 
-                                           self.UTR_5p_e)
-        self.UTR_3p_cvg = self.get_seg_cvg(bamfile, 
-                                           self.contig, 
-                                           self.UTR_3p_s, 
-                                           self.UTR_3p_e)
-
-    def get_CDS_cvg(self, bamfile):
+    def get_cvg_over_loci(self, bamfile, loci):
         cvgs = []
-        for e in self.coding_exons:
+        for loc in loci:
             cvgs.append(self.get_seg_cvg(bamfile, 
                                          self.contig, 
-                                         e[0], 
-                                         e[1]))
-        self.CDS_cvg = np.concatenate(cvgs)
+                                         loc[0], 
+                                         loc[1]))
+        return np.concatenate(cvgs)
+    
 
     def get_cvg(self, bamfile):
-        self.get_UTR_cvg(bamfile)
-        self.get_CDS_cvg(bamfile)
+        self.UTR_5p_cvg = self.get_cvg_over_loci(bamfile, self.UTR_5p_exons)
+        self.UTR_3p_cvg = self.get_cvg_over_loci(bamfile, self.UTR_3p_exons)
+        self.CDS_cvg = self.get_cvg_over_loci(bamfile, self.coding_exons)
+        
         self.UTR_5p_mu  = np.mean(self.UTR_5p_cvg)
         self.UTR_3p_mu  =  np.mean(self.UTR_3p_cvg)
         self.CDS_mu = np.mean(self.CDS_cvg)
@@ -225,7 +238,7 @@ class coverage_data():
         start_5p = 100
         
         stop_3p = 100
-        stop_5p = 100
+        stop_5p = 500
 
         START_DIST = None
         STOP_DIST = None
@@ -250,7 +263,7 @@ class coverage_data():
         l_start_dist = START_DIST.shape[0]
         l_stop_dist = STOP_DIST.shape[0]
         start_codon_pos = start_3p
-        stop_codon_pos = stop_5p
+        stop_codon_pos = stop_3p
         
         start_dist_sum = np.sum(START_DIST)
         stop_dist_sum = np.sum(STOP_DIST)
@@ -317,7 +330,7 @@ if __name__=="__main__":
     parser.add_argument("--n_cvg_bins", default=10, type=int)
     parser.add_argument("--min_CDS", default=1000, type=int)
     parser.add_argument("--min_3p_UTR", default=50, type=int)
-    parser.add_argument("--min_5p_UTR", default=100, type=int)
+    parser.add_argument("--min_5p_UTR", default=500, type=int)
 
     o = parser.parse_args()
 
@@ -347,19 +360,26 @@ if __name__=="__main__":
     summary_simple_outrows = []
     binned_cvg_outrows = []
     CDS_start_stop_outrows = []
-
+    max_t=0
     for contig, cvg_objs in cvg_objs_by_contig.items():
         for i, cvg_obj in enumerate(cvg_objs):
             
+            t = time.time()
+            if cvg_obj.g.beg != 100706650:
+                continue
             cvg_obj.get_cvg(bamfile)
+            if time.time()-t>max_t: max_t = time.time()-t
+            print("t=%f, max_t=%f"%(time.time()-t,max_t))
             cvg_obj.print_summary()
-            
+            pdb.set_trace() 
             summary_outrows.extend(cvg_obj.get_summary_dicts())
             summary_simple_outrows.extend(cvg_obj.get_simple_summary_dict())
             binned_cvg_outrows.extend(cvg_obj.get_binned_cvg_dicts(o.n_cvg_bins))
             CDS_start_stop_outrows.extend(cvg_obj.get_CDS_start_stop_dicts())
+        """
             if i>1000:
                 break
+        """
         break
 
     T_summary = pd.DataFrame(summary_outrows)
