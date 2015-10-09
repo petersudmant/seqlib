@@ -60,7 +60,6 @@ class coverage_data():
                 else:
                     r_UTR_exons.append(ex)
             
-            self.CDS_l = longest_t.coding_end - longest_t.coding_beg
             self.contig = "chr" in g.contig and g.contig or "chr%s"%g.contig
         else:
             assert True, "method %s not supported"%(typ)
@@ -71,6 +70,10 @@ class coverage_data():
         else:
             self.UTR_5p_exons = r_UTR_exons
             self.UTR_3p_exons = l_UTR_exons
+        
+        self.CDS_l = np.sum(np.array([ex[1]-ex[0] for ex in self.coding_exons]))
+        self.UTR_5p_l = np.sum(np.array([ex[1]-ex[0] for ex in self.UTR_5p_exons]))
+        self.UTR_3p_l = np.sum(np.array([ex[1]-ex[0] for ex in self.UTR_3p_exons]))
         
         self.UTR_5p_cvg = None
         self.UTR_3p_cvg = None
@@ -240,7 +243,7 @@ class coverage_data():
         start_5p = 100
         
         stop_3p = 100
-        stop_5p = 500
+        stop_5p = 100
 
         START_DIST = None
         STOP_DIST = None
@@ -330,9 +333,9 @@ if __name__=="__main__":
     parser.add_argument("--fn_logfile", default="/dev/null")
     parser.add_argument("--ENSEMBL_gtf", default=False, action="store_true")
     parser.add_argument("--n_cvg_bins", default=10, type=int)
-    parser.add_argument("--min_CDS", default=1000, type=int)
+    parser.add_argument("--min_CDS", default=500, type=int)
     parser.add_argument("--min_3p_UTR", default=50, type=int)
-    parser.add_argument("--min_5p_UTR", default=500, type=int)
+    parser.add_argument("--min_5p_UTR", default=100, type=int)
 
     o = parser.parse_args()
 
@@ -367,13 +370,11 @@ if __name__=="__main__":
         for i, cvg_obj in enumerate(cvg_objs):
             
             t = time.time()
-            if cvg_obj.g.beg != 100706650:
-                continue
+            #if cvg_obj.g.beg != 100706650: continue
             cvg_obj.get_cvg(bamfile)
             if time.time()-t>max_t: max_t = time.time()-t
             print("t=%f, max_t=%f"%(time.time()-t,max_t))
             cvg_obj.print_summary()
-            pdb.set_trace() 
             summary_outrows.extend(cvg_obj.get_summary_dicts())
             summary_simple_outrows.extend(cvg_obj.get_simple_summary_dict())
             binned_cvg_outrows.extend(cvg_obj.get_binned_cvg_dicts(o.n_cvg_bins))
@@ -382,13 +383,13 @@ if __name__=="__main__":
             if i>1000:
                 break
         """
-        break
-
+        #break
+        
     T_summary = pd.DataFrame(summary_outrows)
     T_summary.to_csv(o.fn_out_summary, index=False, sep="\t")
     
     T_summary_simple = pd.DataFrame(summary_simple_outrows)
-    T_summary.to_csv(o.fn_out_summary_simple, index=False, sep="\t")
+    T_summary_simple.to_csv(o.fn_out_summary_simple, index=False, sep="\t")
 
     T_binned_cvg = pd.DataFrame(binned_cvg_outrows)
     T_binned_cvg.to_csv(o.fn_out_binned_cvg, index=False, sep="\t")
