@@ -127,7 +127,9 @@ class coverage_data():
                                                 self.UTR_3p_cvg]))
     
     def get_binned_cvg(self, vect, n_bins):
-        
+        """
+        Returning the mean
+        """
         return scp_stats.binned_statistic(np.arange(vect.shape[0]),
                                           vect, 
                                           bins = n_bins)[0]
@@ -328,6 +330,10 @@ if __name__=="__main__":
     parser.add_argument("--fn_out_summary_simple", required=True)
     parser.add_argument("--fn_out_binned_cvg", required=True)
     parser.add_argument("--fn_out_CDS_start_stop", required=True)
+    
+    parser.add_argument("--CDS_start_stop", default=False, action="store_true")
+    parser.add_argument("--binned_cvg", default=False, action="store_true")
+    
     parser.add_argument("--gtf_ID", required=True)
     parser.add_argument("--contig_subset", default=None)
     parser.add_argument("--fn_logfile", default="/dev/null")
@@ -373,16 +379,16 @@ if __name__=="__main__":
             #if cvg_obj.g.beg != 100706650: continue
             cvg_obj.get_cvg(bamfile)
             if time.time()-t>max_t: max_t = time.time()-t
-            print("t=%f, max_t=%f"%(time.time()-t,max_t))
-            cvg_obj.print_summary()
+            #print("t=%f, max_t=%f"%(time.time()-t,max_t))
+            #cvg_obj.print_summary()
             summary_outrows.extend(cvg_obj.get_summary_dicts())
-            summary_simple_outrows.extend(cvg_obj.get_simple_summary_dict())
-            binned_cvg_outrows.extend(cvg_obj.get_binned_cvg_dicts(o.n_cvg_bins))
-            CDS_start_stop_outrows.extend(cvg_obj.get_CDS_start_stop_dicts())
-        """
-            if i>1000:
-                break
-        """
+            summary_simple_outrows.append(cvg_obj.get_simple_summary_dict())
+            if o.binned_cvg:
+                binned_cvg_outrows.extend(cvg_obj.get_binned_cvg_dicts(o.n_cvg_bins))
+            if o.CDS_start_stop:
+                CDS_start_stop_outrows.extend(cvg_obj.get_CDS_start_stop_dicts())
+            #if i>10:
+            #    break
         #break
         
     T_summary = pd.DataFrame(summary_outrows)
@@ -391,11 +397,19 @@ if __name__=="__main__":
     T_summary_simple = pd.DataFrame(summary_simple_outrows)
     T_summary_simple.to_csv(o.fn_out_summary_simple, index=False, sep="\t")
 
-    T_binned_cvg = pd.DataFrame(binned_cvg_outrows)
-    T_binned_cvg.to_csv(o.fn_out_binned_cvg, index=False, sep="\t")
-    
-    T_CDS_start_stop = pd.DataFrame(CDS_start_stop_outrows)
-    T_CDS_start_stop.to_csv(o.fn_out_CDS_start_stop, index=False, sep="\t")
+    if o.binned_cvg:
+        T_binned_cvg = pd.DataFrame(binned_cvg_outrows)
+        T_binned_cvg.to_csv(o.fn_out_binned_cvg, index=False, sep="\t")
+    else:
+        F = open(o.fn_out_binned_cvg,'w')
+        F.close()
+
+    if o.CDS_start_stop:
+        T_CDS_start_stop = pd.DataFrame(CDS_start_stop_outrows)
+        T_CDS_start_stop.to_csv(o.fn_out_CDS_start_stop, index=False, sep="\t")
+    else:
+        F = open(o.fn_out_CDS_start_stop,'w')
+        F.close()
 
 
 
