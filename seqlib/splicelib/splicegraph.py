@@ -519,11 +519,13 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
         ss_G = nx.DiGraph() 
 
         all_uniq_exons = {}
-
+        print("n-features:", len(rec.features))
+        n_kept = 0
         for feature in rec.features:
             if feature.type in features:
                 if len(feature.sub_features)<min_exons:
                     continue
+                n_kept +=1
                 t = Transcript.init_from_feature(contig, feature)
                 #alt_ss = t.get_all_3pSS(contig_seq)
 
@@ -559,6 +561,8 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
                                            R_added_LR_intron_intervals,
                                            R_exon_G,
                                            ss_G)
+        
+        print("n-features kept:", n_kept)
         
         SGs_by_contig[contig] = SpliceGraph(contig, F_3p_5p_ss = F_3p_5p_ss, 
                                                     F_5p_3p_ss = F_5p_3p_ss, 
