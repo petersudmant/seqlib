@@ -180,7 +180,9 @@ class MisoUtils(object):
         for contig, sg in self.sgs_by_contig.items():
             F_R_ss_juncs = { "FWD" : sg.F_5p_3p_ss, 
                              "REV" : sg.R_5p_3p_ss }
+
             for strand_d, ss_juncs in F_R_ss_juncs.items():
+
                 for d_5p, a_3ps in ss_juncs.iteritems(): 
                     SEs = self.get_SE(sg, d_5p, a_3ps, strand_d)
                     for SE in SEs:
