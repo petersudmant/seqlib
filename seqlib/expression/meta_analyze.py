@@ -115,6 +115,7 @@ class coverage_data():
     
 
     def get_cvg(self, bamfile):
+        
         self.UTR_5p_cvg = self.get_cvg_over_loci(bamfile, self.UTR_5p_exons)
         self.UTR_3p_cvg = self.get_cvg_over_loci(bamfile, self.UTR_3p_exons)
         self.CDS_cvg = self.get_cvg_over_loci(bamfile, self.coding_exons)
@@ -122,10 +123,18 @@ class coverage_data():
         self.UTR_5p_mu  = np.mean(self.UTR_5p_cvg)
         self.UTR_3p_mu  =  np.mean(self.UTR_3p_cvg)
         self.CDS_mu = np.mean(self.CDS_cvg)
-        self.total_mu = np.mean(np.concatenate([self.CDS_cvg, 
-                                                self.UTR_5p_cvg, 
-                                                self.UTR_3p_cvg]))
-    
+        
+        self.UTR_5p_median  = np.median(self.UTR_5p_cvg)
+        self.UTR_3p_median  =  np.median(self.UTR_3p_cvg)
+        self.CDS_median = np.median(self.CDS_cvg)
+        
+        cat_cvg = np.concatenate([self.CDS_cvg, 
+                                  self.UTR_5p_cvg, 
+                                  self.UTR_3p_cvg])
+
+        self.GENE_mu = np.mean(cat_cvg)
+        self.GENE_median = np.median(cat_cvg)
+        
     def get_binned_cvg(self, vect, n_bins):
         """
         Returning the mean
@@ -157,22 +166,21 @@ class coverage_data():
                 "contig" : self.contig,
                 "start" : self.g.beg,
                 "end" : self.g.end,
-                "cds_len" : self.CDS_l,
+                "CDS_len" : self.CDS_l,
                 "UTR_5p_len" : self.UTR_5p_l,
                 "UTR_3p_len" : self.UTR_3p_l,
-                "cds_mu" : self.CDS_mu,
+                "CDS_mu" : self.CDS_mu,
                 "UTR_5p_mu" : self.UTR_5p_mu,
-                "UTR_3p_mu" : self.UTR_3p_mu}
+                "UTR_3p_mu" : self.UTR_3p_mu,
+                "CDS_median" : self.CDS_median,
+                "UTR_5p_median" : self.UTR_5p_median,
+                "UTR_3p_median" : self.UTR_3p_median, 
+                "GENE_mu":self.GENE_mu,
+                "GENE_median":self.GENE_median}
                 
 
     def get_simple_summary_dict(self):
         dict = self.get_info_dict()
-        
-        dict.update({"UTR_5p_mu" : self.UTR_5p_mu,
-                     "UTR_3p_mu" : self.UTR_3p_mu,
-                     "CDS_mu" : self.UTR_3p_mu,
-                     "mu_total" : self.total_mu})
-
         return dict
 
     def get_summary_dicts(self):
@@ -182,28 +190,23 @@ class coverage_data():
         
         UTR_5p.update({"type" : "5p_UTR",
                        "pos" : 0,
-                       "mu_depth" : self.UTR_5p_mu,
-                       "mu_total" : self.total_mu})
+                       "mu_cvg" : self.UTR_5p_mu})
 
         CDS.update({"type" : "CDS",
                     "pos" : 1,
-                    "mu_depth" : self.CDS_mu,
-                    "mu_total" : self.total_mu})
+                    "mu_cvg" : self.CDS_mu})
         
         UTR_3p.update({"type" : "3p_UTR",
                        "pos" : 2,
-                       "mu_depth" : self.UTR_3p_mu,
-                       "mu_total" : self.total_mu})
+                       "mu_cvg" : self.UTR_3p_mu})
         
         return [UTR_5p, CDS, UTR_3p]                                                    
     
-
-        
     def get_binned_cvg_dicts(self, n_bins):
         
-        UTR_5p_cvg = self.get_binned_cvg(self.UTR_5p_cvg, n_bins)
-        UTR_3p_cvg = self.get_binned_cvg(self.UTR_3p_cvg, n_bins)
-        CDS_cvg = self.get_binned_cvg(self.CDS_cvg, n_bins)
+        b_UTR_5p_cvg = self.get_binned_cvg(self.UTR_5p_cvg, n_bins)
+        b_UTR_3p_cvg = self.get_binned_cvg(self.UTR_3p_cvg, n_bins)
+        b_CDS_cvg = self.get_binned_cvg(self.CDS_cvg, n_bins)
         
         dicts = []
         
@@ -215,21 +218,17 @@ class coverage_data():
             UTR_5p.update({"type" : "5p_UTR",
                            "bin" : bin, 
                            "pos" : 0, 
-                           "cvg" : UTR_5p_cvg[bin],
-                           "mu_total" : self.total_mu})
+                           "cvg" : b_UTR_5p_cvg[bin]})
 
             CDS.update({"type" : "CDS",
                         "bin" : bin, 
                         "pos" : 1, 
-                        "cvg" : CDS_cvg[bin],
-                        "mu_total" : self.total_mu})
+                        "cvg" : b_CDS_cvg[bin]})
 
             UTR_3p.update({"type" : "3p_UTR",
                            "bin" : bin, 
                            "pos" : 2, 
-                           "cvg" : UTR_3p_cvg[bin],
-                           "mu_total" : self.total_mu})
-            
+                           "cvg" : b_UTR_3p_cvg[bin]})
 
             dicts.extend([UTR_5p, CDS, UTR_3p])
             
@@ -283,8 +282,7 @@ class coverage_data():
                                    "pos" : i-start_codon_pos, 
                                    "cvg" : START_DIST[i],
                                    "sum_cvg" : start_dist_sum, 
-                                   "strand" : self.strand, 
-                                   "mu_total" : self.total_mu})
+                                   "strand" : self.strand })
                 dicts.append(START_dict)
             if i<l_stop_dist:
                 STOP_dict = self.get_info_dict()
@@ -292,22 +290,22 @@ class coverage_data():
                                   "pos" : i-stop_codon_pos, 
                                   "cvg" : STOP_DIST[i],
                                   "sum_cvg" : stop_dist_sum, 
-                                  "strand" : self.strand, 
-                                  "mu_total" : self.total_mu})
+                                  "strand" : self.strand })
                 dicts.append(STOP_dict)
             
         return dicts
 
 
-def get_cvg_objs_by_contig(contig_subset, genes, tr_contig, min_CDS, min_3p_UTR, min_5p_UTR):
+def get_cvg_objs_by_contig(contig_subset, indiv_gene, genes, tr_contig, min_CDS, min_3p_UTR, min_5p_UTR):
     
     cvg_objs_by_contig = {}
-    
     for g in genes['protein_coding']:
         contig = tr_contig(g.contig)
         if not contig in contig_subset:
             continue
-
+        if indiv_gene and not indiv_gene in g.names:
+            continue
+        
         if not contig in cvg_objs_by_contig:
             cvg_objs_by_contig[contig] = []
 
@@ -328,16 +326,16 @@ if __name__=="__main__":
     parser.add_argument("--fn_bam", required=True)
     parser.add_argument("--fn_out_summary", required=True)
     parser.add_argument("--fn_out_summary_simple", required=True)
-    parser.add_argument("--fn_out_binned_cvg", required=True)
-    parser.add_argument("--fn_out_CDS_start_stop", required=True)
+    parser.add_argument("--fn_out_binned_cvg", required=False)
+    parser.add_argument("--fn_out_CDS_start_stop", required=False)
     
     parser.add_argument("--CDS_start_stop", default=False, action="store_true")
     parser.add_argument("--binned_cvg", default=False, action="store_true")
     
+    parser.add_argument("--individual_gene", required=False, default=None)
     parser.add_argument("--gtf_ID", required=True)
     parser.add_argument("--contig_subset", default=None)
     parser.add_argument("--fn_logfile", default="/dev/null")
-    parser.add_argument("--ENSEMBL_gtf", default=False, action="store_true")
     parser.add_argument("--n_cvg_bins", default=10, type=int)
     parser.add_argument("--min_CDS", default=500, type=int)
     parser.add_argument("--min_3p_UTR", default=50, type=int)
@@ -357,10 +355,11 @@ if __name__=="__main__":
         contig_subset = o.contig_subset.split(":")
     else:
         contig_subset = ["chr%d"%i for i in range(1,24)]
-
+    
     tr_contig = lambda x:  "chr" in x and x or "chr%s"%x
     
     cvg_objs_by_contig = get_cvg_objs_by_contig(contig_subset, 
+                                                o.individual_gene,
                                                 genes, 
                                                 tr_contig,
                                                 o.min_CDS,
@@ -372,8 +371,11 @@ if __name__=="__main__":
     binned_cvg_outrows = []
     CDS_start_stop_outrows = []
     max_t=0
+    total_assessed = 0
     for contig, cvg_objs in cvg_objs_by_contig.items():
+        print("current contig: %s\tassessed: %d"%(contig, total_assessed))
         for i, cvg_obj in enumerate(cvg_objs):
+            total_assessed +=1
             
             t = time.time()
             #if cvg_obj.g.beg != 100706650: continue
@@ -400,17 +402,11 @@ if __name__=="__main__":
     if o.binned_cvg:
         T_binned_cvg = pd.DataFrame(binned_cvg_outrows)
         T_binned_cvg.to_csv(o.fn_out_binned_cvg, index=False, sep="\t")
-    else:
-        F = open(o.fn_out_binned_cvg,'w')
-        F.close()
 
     if o.CDS_start_stop:
         T_CDS_start_stop = pd.DataFrame(CDS_start_stop_outrows)
         T_CDS_start_stop.to_csv(o.fn_out_CDS_start_stop, index=False, sep="\t")
-    else:
-        F = open(o.fn_out_CDS_start_stop,'w')
-        F.close()
-
+        
 
 
 
