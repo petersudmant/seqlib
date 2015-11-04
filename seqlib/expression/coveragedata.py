@@ -7,58 +7,73 @@ import itertools
 import time
 import pdb
 
+
+
+
+def longest_coding_t(g):
+
+    longest_t = None
+    longest_l = None
+    for t in g.transcripts:
+        if longest_t == None and t.coding_beg != None:
+            longest_t = t
+            longest_t_l = np.absolute(t.coding_end - t.coding_beg)
+        elif t.coding_end!=None and \
+                 longest_t_l!=None and \
+                 np.absolute(t.coding_end - t.coding_beg) > longest_t_l: 
+            longest_t = t
+            longest_t_l = np.absolute(longest_t.coding_end - longest_t.coding_beg) 
+    
+    exons = sorted(longest_t.get_exons())
+    coding_exons = sorted(longest_t.get_coding_exons())
+
+    contig = "chr" in g.contig and g.contig or "chr%s"%g.contig
+    
+    return exons, coding_exons, contig
+
+def get_l_r_UTR_exons(exons, coding_exons):
+    """
+    NEED TO MAKE l_UTR_exons and r_UTR_exons
+    """
+    coding_ex_l, coding_ex_r = coding_exons[0], coding_exons[-1]
+    
+    l_UTR_exons = []
+    r_UTR_exons = []
+    
+    for ex in exons:
+        if ex[1]>coding_ex_l[0]:
+            l_UTR_exons.append([ex[0],coding_ex_l[0]])
+            break
+        else:
+            l_UTR_exons.append(ex)
+    
+    for ex in exons[::-1]:
+        if ex[0]<coding_ex_r[1]:
+            r_UTR_exons.append([coding_ex_r[1],ex[1]])
+            break
+        else:
+            r_UTR_exons.append(ex)
+
+    return l_UTR_exons, r_UTR_exons
+
 class CoverageData():
 
-    def __init__(self, g, typ = "longest_coding_transcript"):
+    def __init__(self, g, typ = "virtual_gene"):
         
         self.g = g
         self.strand = self.g.strand
         
-        l_UTR_exons = []
-        r_UTR_exons = []
-        
-        if typ == "longest_coding_transcript":
-            longest_t = None
-            longest_l = None
-            for t in g.transcripts:
-                if longest_t == None and t.coding_beg != None:
-                    longest_t = t
-                    longest_t_l = np.absolute(t.coding_end - t.coding_beg)
-                elif t.coding_end!=None and \
-                         longest_t_l!=None and \
-                         np.absolute(t.coding_end - t.coding_beg) > longest_t_l: 
-                    longest_t = t
-                    longest_t_l = np.absolute(longest_t.coding_end - longest_t.coding_beg) 
-            
-            exons = sorted(longest_t.get_exons())
-            coding_exons = sorted(longest_t.get_coding_exons())
-
-            self.exons = exons
-            self.coding_exons = coding_exons
-            
-            """
-            NEED TO MAKE l_UTR_exons and r_UTR_exons
-            """
-            coding_ex_l, coding_ex_r = self.coding_exons[0], self.coding_exons[-1]
-            
-            for ex in self.exons:
-                if ex[1]>coding_ex_l[0]:
-                    l_UTR_exons.append([ex[0],coding_ex_l[0]])
-                    break
-                else:
-                    l_UTR_exons.append(ex)
-            
-            for ex in self.exons[::-1]:
-                if ex[0]<coding_ex_r[1]:
-                    r_UTR_exons.append([coding_ex_r[1],ex[1]])
-                    break
-                else:
-                    r_UTR_exons.append(ex)
-            
+        if typ == "virtual_gene":
             self.contig = "chr" in g.contig and g.contig or "chr%s"%g.contig
+            self.exons = sorted(g.virtual_exons)
+            self.coding_exons = sorted(g.virtual_coding_exons)
+        elif typ == "longest_coding_transcript":
+            self.exons, self.coding_exons, self.contig = longest_coding_t(g)
         else:
             assert True, "method %s not supported"%(typ)
         
+        l_UTR_exons, r_UTR_exons = get_l_r_UTR_exons(self.exons, self.coding_exons)
+
         if g.strand:
             self.UTR_5p_exons = l_UTR_exons
             self.UTR_3p_exons = r_UTR_exons
@@ -208,6 +223,65 @@ class CoverageData():
             dicts.append(d)
         
         return dicts
+
+    def get_by_exon_dicts(self):
+
+        return_dicts = []
+        for i, UTR_5p_e in enumerate(self.UTR_5p_exons):
+            d = self.get_info_dict()
+            s,e  = UTR_5p_e
+            s_i, e_i = s-self.UTR_5p_exons[0][0], e-self.UTR_5p_exons[0][0] 
+            
+            mu, med = 0, 0
+            if e_i<=self.UTR_5p_cvg.shape[0]:
+                mu =  np.mean(self.UTR_5p_cvg[s_i:e_i])
+                med = np.median(self.UTR_5p_cvg[s_i:e_i])
+
+            d.update({"type": "5p_UTR",
+                      "exon":i,
+                      "start":s,
+                      "end":e,
+                      "mu_cvg": mu, 
+                      "median_cvg": med})
+            return_dicts.append(d)
+        
+        for i, CDS_e in enumerate(self.coding_exons):
+            d = self.get_info_dict()
+            s,e  = CDS_e
+            s_i, e_i = s-self.coding_exons[0][0], e-self.coding_exons[0][0] 
+
+            mu, med = 0, 0
+            if e_i<=self.CDS_cvg.shape[0]:
+                mu =  np.mean(self.CDS_cvg[s_i:e_i])
+                med = np.median(self.CDS_cvg[s_i:e_i])
+
+            d.update({"type": "CDS",
+                      "exon":i,
+                      "start":s,
+                      "end":e,
+                      "mu_cvg": mu,
+                      "median_cvg": med})
+            return_dicts.append(d)
+        
+        for i, UTR_3p_e in enumerate(self.UTR_3p_exons):
+            d = self.get_info_dict()
+            s,e  = UTR_3p_e
+            s_i, e_i = s-self.UTR_3p_exons[0][0], e-self.UTR_3p_exons[0][0] 
+            
+            mu, med = 0, 0
+            if e_i<=self.UTR_3p_cvg.shape[0]:
+                mu =  np.mean(self.UTR_3p_cvg[s_i:e_i])
+                med = np.median(self.UTR_3p_cvg[s_i:e_i])
+            
+            d.update({"type": "3p_UTR",
+                      "exon":i,
+                      "start":s,
+                      "end":e,
+                      "mu_cvg": mu,
+                      "median_cvg": med})
+            return_dicts.append(d)
+
+        return return_dicts
 
     def get_summary_dicts(self):
         UTR_5p = self.get_info_dict()
