@@ -90,7 +90,6 @@ if __name__=="__main__":
     
     bp_cov_tables = []
     for sample in o.samples:
-        print(sample)
         cvg_obj = CoverageData(g_obj)
         bp_cvg_rows = cvg_obj.get_cvg(bamfiles[sample])
         bp_cvg_rows = cvg_obj.get_bp_cvg_dicts()
