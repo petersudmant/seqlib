@@ -51,12 +51,17 @@ if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--fn_gtf_index", required=True)
+    
     parser.add_argument("--fn_bams", required=True, nargs="+")
     parser.add_argument("--samples", required=True, nargs="+")
+    parser.add_argument("--celltypes", required=True, nargs="+")
+    parser.add_argument("--times", required=True, nargs="+")
+
     parser.add_argument("--fn_out_cvg", required=True)
     parser.add_argument("--fn_out_gene_model", required=True)
     parser.add_argument("--gene", required=True, default=None)
     parser.add_argument("--gtf_ID", required=True)
+
     parser.add_argument("--fn_logfile", default="/dev/null")
 
     o = parser.parse_args()
@@ -64,8 +69,12 @@ if __name__=="__main__":
     logger = logging.getLogger(o.fn_logfile)
     
     bamfiles = {}
+    times = {}
+    celltypes = {}
     for i, sample in enumerate(o.samples):
         bamfiles[sample] = pysam.AlignmentFile(o.fn_bams[i], 'rb')
+        times[sample] = o.times[i]
+        celltypes[sample] = o.celltypes[i]
         
     species_id, gtf_path, genes = get_indexed_genes_for_identifier(o.fn_gtf_index,
                                                                    logger, 
@@ -81,11 +90,14 @@ if __name__=="__main__":
     
     bp_cov_tables = []
     for sample in o.samples:
+        print(sample)
         cvg_obj = CoverageData(g_obj)
         bp_cvg_rows = cvg_obj.get_cvg(bamfiles[sample])
         bp_cvg_rows = cvg_obj.get_bp_cvg_dicts()
         T = pd.DataFrame(bp_cvg_rows)
         T['sample'] = sample
+        T['time'] = times[sample]
+        T['celltype'] = celltypes[sample]
         bp_cov_tables.append(T)
     
     T = pd.concat(bp_cov_tables)

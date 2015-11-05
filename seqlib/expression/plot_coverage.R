@@ -12,6 +12,8 @@ fn_output = cmdArg("fn_output")
 
 t_cvg = read.table(fn_cvg, header=TRUE, sep="\t")
 
+
+
 theme_no_x_axis = theme(axis.text.x=element_blank(),
                         axis.line.x=element_blank(),
                         axis.ticks.x=element_blank())
@@ -19,12 +21,15 @@ theme_no_x_axis = theme(axis.text.x=element_blank(),
 theme_no_y_axis = theme(axis.text.y=element_blank(),
                         axis.line.y=element_blank(),
                         axis.ticks.y=element_blank())
+colors = brewer.pal(7, "Set1)
+
 g1=ggplot(t_cvg)+
-    geom_area(aes(x=pos,y=cvg),fill="steelblue")+
+    geom_area(aes(x=pos,y=cvg,fill=celltype))+
     theme_classic()+
     facet_grid(sample~.,scales="free_y")+
     theme(axis.text.y=element_text(size=5))+
     scale_x_continuous("")+scale_y_continuous("")+
+    scale_color_manual(values=colors)+
     theme_no_x_axis  
 
 
