@@ -202,26 +202,46 @@ class CoverageData():
         cds_exon_poses = list(itertools.chain(*[range(e[0],e[1]) for e in self.coding_exons]))
         
         for i in xrange(self.UTR_5p_cvg.shape[0]):
-            d = self.get_info_dict()
-            d.update({"type" : "5p_UTR",
-                       "pos" : UTR_5p_poses[i],
-                       "cvg" : self.UTR_5p_cvg[i]})
-            dicts.append(d)
+            if self.UTR_5p_cvg[i]!=0:
+                d = self.get_info_dict()
+                d.update({"type" : "5p_UTR",
+                           "pos" : UTR_5p_poses[i],
+                           "cvg" : self.UTR_5p_cvg[i]})
+                dicts.append(d)
 
         for i in xrange(self.UTR_3p_cvg.shape[0]):
-            d = self.get_info_dict()
-            d.update({"type" : "3p_UTR",
-                       "pos" : UTR_3p_poses[i],
-                       "cvg" : self.UTR_3p_cvg[i]})
-            dicts.append(d)
+            if self.UTR_3p_cvg[i]!=0:
+                d = self.get_info_dict()
+                d.update({"type" : "3p_UTR",
+                           "pos" : UTR_3p_poses[i],
+                           "cvg" : self.UTR_3p_cvg[i]})
+                dicts.append(d)
 
         for i in xrange(self.CDS_cvg.shape[0]):
-            d = self.get_info_dict()
-            d.update({"type" : "CDS",
-                       "pos" : cds_exon_poses[i],
-                       "cvg" : self.CDS_cvg[i]})
-            dicts.append(d)
+            if self.CDS_cvg[i]!=0:
+                d = self.get_info_dict()
+                d.update({"type" : "CDS",
+                           "pos" : cds_exon_poses[i],
+                           "cvg" : self.CDS_cvg[i]})
+                dicts.append(d)
         
+        """
+        PUT 0s on the edges of exons - NOTE: not showing the intron loci
+        even though they could have cvg
+        """
+        for e in self.UTR_5p_exons+self.UTR_3p_exons+self.coding_exons:
+            d1 = self.get_info_dict()
+            d2 = self.get_info_dict()
+            
+            d1.update({"type" : "edge",
+                       "pos" : e[0]-1,
+                       "cvg" : 0})
+
+            d2.update({"type" : "edge",
+                       "pos" : e[1]+1,
+                       "cvg" : 0})
+            dicts.append(d1)
+            dicts.append(d2)
         return dicts
 
     def get_by_exon_dicts(self):
