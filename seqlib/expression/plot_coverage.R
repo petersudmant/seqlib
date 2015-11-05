@@ -11,6 +11,7 @@ args = cmdArgs()
 fn_cvg = cmdArg("fn_cvg")
 fn_gene_model = cmdArg("fn_gene_model")
 fn_output = cmdArg("fn_output")
+gene = cmdArg("gene")
 
 height = cmdArg("height",-1)
 width = cmdArg("width",4)
@@ -68,6 +69,7 @@ g2=ggplot(t_gene_model)+
     theme(axis.text.x=element_text(size=5), axis.line.x=element_blank())+
     scale_x_continuous("",lim=c(xmin,xmax))+scale_y_continuous("")+
     theme(plot.margin = unit(c(-1,0,0,0),"cm"))+
+    annotate("text", x=xmin, y=-1, label=gene, hjust=0, size=1.5)+
     theme_no_y_axis
 
 gA = ggplotGrob(g1)
