@@ -62,7 +62,7 @@ if __name__=="__main__":
     parser.add_argument("--min_5p_UTR", default=100, type=int)
 
     o = parser.parse_args()
-
+    
     logger = logging.getLogger(o.fn_logfile)
 
     bamfile = pysam.AlignmentFile(o.fn_bam, 'rb')

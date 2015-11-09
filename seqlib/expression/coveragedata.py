@@ -8,8 +8,6 @@ import time
 import pdb
 
 
-
-
 def longest_coding_t(g):
 
     longest_t = None
@@ -75,15 +73,34 @@ class CoverageData():
         l_UTR_exons, r_UTR_exons = get_l_r_UTR_exons(self.exons, self.coding_exons)
 
         if g.strand:
-            self.UTR_5p_exons = l_UTR_exons
-            self.UTR_3p_exons = r_UTR_exons
+            self.UTR_5p_exons = sorted(l_UTR_exons)
+            self.UTR_3p_exons = sorted(r_UTR_exons)
         else:
-            self.UTR_5p_exons = r_UTR_exons
-            self.UTR_3p_exons = l_UTR_exons
+            self.UTR_5p_exons = sorted(r_UTR_exons)
+            self.UTR_3p_exons = sorted(l_UTR_exons)
         
         self.CDS_l = np.sum(np.array([ex[1]-ex[0] for ex in self.coding_exons]))
         self.UTR_5p_l = np.sum(np.array([ex[1]-ex[0] for ex in self.UTR_5p_exons]))
         self.UTR_3p_l = np.sum(np.array([ex[1]-ex[0] for ex in self.UTR_3p_exons]))
+        
+        #RNA - space
+        self.RNAcoord_UTR_5p_exons = []
+        self.RNAcoord_UTR_3p_exons = []
+        self.RNAcoord_coding_exons = []
+        for i,e in enumerate(self.UTR_5p_exons):
+            elen = e[1]-e[0]
+            last_e = i>0 and self.RNAcoord_UTR_5p_exons[-1][1] or 0
+            self.RNAcoord_UTR_5p_exons.append((last_e, last_e+elen))
+            
+        for i,e in enumerate(self.UTR_3p_exons):
+            elen = e[1]-e[0]
+            last_e = i>0 and self.RNAcoord_UTR_3p_exons[-1][1] or 0
+            self.RNAcoord_UTR_3p_exons.append((last_e, last_e+elen))
+        
+        for i,e in enumerate(self.coding_exons):
+            elen = e[1]-e[0]
+            last_e = i>0 and self.RNAcoord_coding_exons[-1][1] or 0
+            self.RNAcoord_coding_exons.append((last_e, last_e+elen))
         
         self.UTR_5p_cvg = None
         self.UTR_3p_cvg = None
@@ -245,17 +262,14 @@ class CoverageData():
         return dicts
 
     def get_by_exon_dicts(self):
-
         return_dicts = []
         for i, UTR_5p_e in enumerate(self.UTR_5p_exons):
             d = self.get_info_dict()
             s,e  = UTR_5p_e
-            s_i, e_i = s-self.UTR_5p_exons[0][0], e-self.UTR_5p_exons[0][0] 
+            s_i, e_i = self.RNAcoord_UTR_5p_exons[i]
             
-            mu, med = 0, 0
-            if e_i<=self.UTR_5p_cvg.shape[0]:
-                mu =  np.mean(self.UTR_5p_cvg[s_i:e_i])
-                med = np.median(self.UTR_5p_cvg[s_i:e_i])
+            mu =  np.mean(self.UTR_5p_cvg[s_i:e_i])
+            med = np.median(self.UTR_5p_cvg[s_i:e_i])
 
             d.update({"type": "5p_UTR",
                       "exon":i,
@@ -268,12 +282,10 @@ class CoverageData():
         for i, CDS_e in enumerate(self.coding_exons):
             d = self.get_info_dict()
             s,e  = CDS_e
-            s_i, e_i = s-self.coding_exons[0][0], e-self.coding_exons[0][0] 
+            s_i, e_i = self.RNAcoord_coding_exons[i]
 
-            mu, med = 0, 0
-            if e_i<=self.CDS_cvg.shape[0]:
-                mu =  np.mean(self.CDS_cvg[s_i:e_i])
-                med = np.median(self.CDS_cvg[s_i:e_i])
+            mu =  np.mean(self.CDS_cvg[s_i:e_i])
+            med = np.median(self.CDS_cvg[s_i:e_i])
 
             d.update({"type": "CDS",
                       "exon":i,
@@ -286,12 +298,10 @@ class CoverageData():
         for i, UTR_3p_e in enumerate(self.UTR_3p_exons):
             d = self.get_info_dict()
             s,e  = UTR_3p_e
-            s_i, e_i = s-self.UTR_3p_exons[0][0], e-self.UTR_3p_exons[0][0] 
+            s_i, e_i = self.RNAcoord_UTR_3p_exons[i]
             
-            mu, med = 0, 0
-            if e_i<=self.UTR_3p_cvg.shape[0]:
-                mu =  np.mean(self.UTR_3p_cvg[s_i:e_i])
-                med = np.median(self.UTR_3p_cvg[s_i:e_i])
+            mu =  np.mean(self.UTR_3p_cvg[s_i:e_i])
+            med = np.median(self.UTR_3p_cvg[s_i:e_i])
             
             d.update({"type": "3p_UTR",
                       "exon":i,
