@@ -63,8 +63,8 @@ class PrimerDesign(object):
         nested = kwargs.get("nested", False)
         n_max = kwargs.get("n_max", 1)
         target_size_range = kwargs.get("target_size_range", [150,250])
-        target_size_range = "-".join(["%s"%s for s in target_size_range])
-
+        #target_size_range = "-".join(["%s"%s for s in target_size_range])
+        target_size_range = [target_size_range]
         ret_val_lambdas = {}
         ret_val_lambdas["PRIMER_PAIR_{n}_PRODUCT_SIZE"] = kwargs.get("PRIMER_PRODUCT_SIZE", lambda x: int(x))
         
@@ -77,19 +77,39 @@ class PrimerDesign(object):
             ret_val_lambdas["PRIMER_LEFT_{n}"] = kwargs.get("PRIMER_LEFT", lambda x: end-int(x[0]))
             ret_val_lambdas["PRIMER_RIGHT_{n}"] = kwargs.get("PRIMER_RIGHT", lambda x: start+(length-int(x[0]))-1)
         
-        seq_args = {"SEQUENCE_ID":"",
-                    "SEQUENCE_TEMPLATE":seq, 
-                    "PRIMER_PRODUCT_SIZE_RANGE": target_size_range}
-        
-        seq_args.update(additional_args)
+        seq_args = {"SEQUENCE_ID":"ID_%s"%name_prefix,
+                    "SEQUENCE_TEMPLATE":seq}
+
+        global_args = {
+            'PRIMER_OPT_SIZE': 20,
+            'PRIMER_PICK_INTERNAL_OLIGO': 1,
+            'PRIMER_INTERNAL_MAX_SELF_END': 8,
+            'PRIMER_MIN_SIZE': 18,
+            'PRIMER_MAX_SIZE': 25,
+            'PRIMER_OPT_TM': 60.0,
+            'PRIMER_MIN_TM': 57.0,
+            'PRIMER_MAX_TM': 63.0,
+            'PRIMER_MIN_GC': 20.0,
+            'PRIMER_MAX_GC': 80.0,
+            'PRIMER_MAX_POLY_X': 100,
+            'PRIMER_INTERNAL_MAX_POLY_X': 100,
+            'PRIMER_SALT_MONOVALENT': 50.0,
+            'PRIMER_DNA_CONC': 50.0,
+            'PRIMER_MAX_NS_ACCEPTED': 0,
+            'PRIMER_MAX_SELF_ANY': 12,
+            'PRIMER_MAX_SELF_END': 8,
+            'PRIMER_PAIR_MAX_COMPL_ANY': 12,
+            'PRIMER_PAIR_MAX_COMPL_END': 8,
+            'PRIMER_PRODUCT_SIZE_RANGE': target_size_range
+        }
+        global_args.update(additional_args)
+
         if len(seq)<100:
             return []
-
-        p3_ret = primer3.designPrimers(seq_args, self.mispriming_dict)
-        #try:
-        #except:
-        #    return []
-    
+        p3_ret = primer3.designPrimers(seq_args, 
+                                       global_args=global_args, 
+                                       misprime_lib=self.mispriming_dict)
+         
         if int(p3_ret['PRIMER_PAIR_NUM_RETURNED']) == 0:
             return []
         
