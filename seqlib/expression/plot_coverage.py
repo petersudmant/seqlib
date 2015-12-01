@@ -72,6 +72,7 @@ if __name__=="__main__":
     times = {}
     celltypes = {}
     for i, sample in enumerate(o.samples):
+        print(sample)
         bamfiles[sample] = pysam.AlignmentFile(o.fn_bams[i], 'rb')
         times[sample] = o.times[i]
         celltypes[sample] = o.celltypes[i]

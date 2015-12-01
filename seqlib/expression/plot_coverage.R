@@ -69,7 +69,7 @@ g2=ggplot(t_gene_model)+
     theme(axis.text.x=element_text(size=5), axis.line.x=element_blank())+
     scale_x_continuous("",lim=c(xmin,xmax))+scale_y_continuous("")+
     theme(plot.margin = unit(c(-1,0,0,0),"cm"))+
-    annotate("text", x=xmin, y=-1, label=gene, hjust=0, size=1.5)+
+    annotate("text", x=xmin, y=0, label=gene, hjust=0, size=1.5)+
     theme_no_y_axis
 
 gA = ggplotGrob(g1)
