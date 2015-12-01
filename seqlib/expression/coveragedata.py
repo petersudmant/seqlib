@@ -273,8 +273,8 @@ class CoverageData():
 
             d.update({"type": "5p_UTR",
                       "exon":i,
-                      "start":s,
-                      "end":e,
+                      "exon_start":s,
+                      "exon_end":e,
                       "mu_cvg": mu, 
                       "median_cvg": med})
             return_dicts.append(d)
@@ -289,8 +289,8 @@ class CoverageData():
 
             d.update({"type": "CDS",
                       "exon":i,
-                      "start":s,
-                      "end":e,
+                      "exon_start":s,
+                      "exon_end":e,
                       "mu_cvg": mu,
                       "median_cvg": med})
             return_dicts.append(d)
@@ -305,8 +305,8 @@ class CoverageData():
             
             d.update({"type": "3p_UTR",
                       "exon":i,
-                      "start":s,
-                      "end":e,
+                      "exon_start":s,
+                      "exon_end":e,
                       "mu_cvg": mu,
                       "median_cvg": med})
             return_dicts.append(d)
