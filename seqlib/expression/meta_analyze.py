@@ -57,9 +57,9 @@ if __name__=="__main__":
     parser.add_argument("--contig_subset", default=None)
     parser.add_argument("--fn_logfile", default="/dev/null")
     parser.add_argument("--n_cvg_bins", default=10, type=int)
-    parser.add_argument("--min_CDS", default=500, type=int)
+    parser.add_argument("--min_CDS", default=50, type=int)
     parser.add_argument("--min_3p_UTR", default=50, type=int)
-    parser.add_argument("--min_5p_UTR", default=100, type=int)
+    parser.add_argument("--min_5p_UTR", default=0, type=int)
 
     o = parser.parse_args()
     
