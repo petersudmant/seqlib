@@ -49,22 +49,25 @@ class PrimerDesign(object):
     def get_primers(self, **kwargs):
         """
         addditional_args that could be added
-            #SEQUENCE_TARGET 37,89
+            #SEQUENCE_TARGET [37,1] ###NOTE< secondd number is len
             #SEQUENCE_EXCLUDED_REGION 37,89
         """
         
         seq = kwargs.get("seq")
-        contig = kwargs.get("contig")
-        start = kwargs.get("start")
-        end = kwargs.get("end")
-        strand = kwargs.get("strand")
-        additional_args = kwargs.get("additional_args", {})
+        contig = kwargs.get("contig", "-")
+        start = kwargs.get("start", 0)
+        end = kwargs.get("end", 0)
+        strand = kwargs.get("strand", "+")
         name_prefix = kwargs.get("name_prefix", "")
         nested = kwargs.get("nested", False)
         n_max = kwargs.get("n_max", 1)
+        
         target_size_range = kwargs.get("target_size_range", [150,250])
-        #target_size_range = "-".join(["%s"%s for s in target_size_range])
         target_size_range = [target_size_range]
+        
+        _seq_args = kwargs.get("seq_args", {})
+        _global_args = kwargs.get("global_args", {})
+        
         ret_val_lambdas = {}
         ret_val_lambdas["PRIMER_PAIR_{n}_PRODUCT_SIZE"] = kwargs.get("PRIMER_PRODUCT_SIZE", lambda x: int(x))
         
@@ -79,6 +82,8 @@ class PrimerDesign(object):
         
         seq_args = {"SEQUENCE_ID":"ID_%s"%name_prefix,
                     "SEQUENCE_TEMPLATE":seq}
+        
+        seq_args.update(_seq_args)
 
         global_args = {
             'PRIMER_OPT_SIZE': 20,
@@ -102,7 +107,7 @@ class PrimerDesign(object):
             'PRIMER_PAIR_MAX_COMPL_END': 8,
             'PRIMER_PRODUCT_SIZE_RANGE': target_size_range
         }
-        global_args.update(additional_args)
+        global_args.update(_global_args)
 
         if len(seq)<100:
             return []
@@ -121,6 +126,10 @@ class PrimerDesign(object):
             ret_dicts.append(ret_dict)
             p_left_key = 'PRIMER_LEFT_{n}'.format(n=i_primer_ret)
             p_right_key = 'PRIMER_RIGHT_{n}'.format(n=i_primer_ret)
+            
+            if not p_left_key in p3_ret:
+                #break if fewer than requested found
+                break
 
             seg_s=ret_val_lambdas['PRIMER_LEFT_{n}'](p3_ret[p_left_key])
             seg_e=ret_val_lambdas['PRIMER_RIGHT_{n}'](p3_ret[p_right_key])
