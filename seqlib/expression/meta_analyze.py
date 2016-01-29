@@ -4,14 +4,15 @@ import numpy as np
 import scipy.stats as scp_stats
 import pandas as pd
 
-import pysam_ext.pysam_ext as pysam_ext
 from coveragedata import CoverageData 
 
 import logging
 import pysam
+import pysamstats
 import pdb
 import math
 import time
+import sys
 
 
 def get_cvg_objs_by_contig(contig_subset, indiv_gene, genes, tr_contig, min_CDS, min_3p_UTR, min_5p_UTR):
@@ -42,6 +43,7 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--fn_gtf_index", required=True)
     parser.add_argument("--fn_bam", required=True)
+    parser.add_argument("--fn_fasta", required=True)
     parser.add_argument("--fn_out_summary", required=True)
     parser.add_argument("--fn_out_summary_simple", required=True)
     parser.add_argument("--fn_out_summary_by_exon", required=True)
@@ -57,8 +59,8 @@ if __name__=="__main__":
     parser.add_argument("--contig_subset", default=None)
     parser.add_argument("--fn_logfile", default="/dev/null")
     parser.add_argument("--n_cvg_bins", default=10, type=int)
-    parser.add_argument("--min_CDS", default=50, type=int)
-    parser.add_argument("--min_3p_UTR", default=50, type=int)
+    parser.add_argument("--min_CDS", default=0, type=int)
+    parser.add_argument("--min_3p_UTR", default=0, type=int)
     parser.add_argument("--min_5p_UTR", default=0, type=int)
 
     o = parser.parse_args()
@@ -66,6 +68,8 @@ if __name__=="__main__":
     logger = logging.getLogger(o.fn_logfile)
 
     bamfile = pysam.AlignmentFile(o.fn_bam, 'rb')
+    
+    contig_lengths = {x[0]:x[1] for x in zip(bamfile.references, bamfile.lengths)}
     
     species_id, gtf_path, genes = get_indexed_genes_for_identifier(o.fn_gtf_index,
                                                                    logger, 
@@ -96,19 +100,42 @@ if __name__=="__main__":
     total_assessed = 0
     for contig, cvg_objs in cvg_objs_by_contig.items():
         print("current contig: %s\tassessed: %d"%(contig, total_assessed))
+        t=time.time()
+        """
+        ###
+        UPDATE WHEN FIXED ON GITHUB 
+        ###
+        """
+        cvg_recarray = pysamstats.load_nondel_coverage(bamfile, 
+                                                      chrom=contig, 
+                                                      start=0, 
+                                                      end=contig_lengths[contig])
+        """
+        #FOR TESTING
+        cvg_recarray = pysamstats.load_nondel_coverage(bamfile, 
+                                                      chrom=contig, 
+                                                      start=0, 
+                                                      end=5000000)
+        print("time to load contig: %fs"%(time.time()-t))
+        sys.stdout.flush()
+        """
+
         for i, cvg_obj in enumerate(cvg_objs):
             total_assessed +=1
             
             t = time.time()
             #if cvg_obj.g.beg != 100706650: continue
-            cvg_obj.get_cvg(bamfile)
-            if time.time()-t>max_t: max_t = time.time()-t
-            #print("t=%f, max_t=%f"%(time.time()-t,max_t))
+            cvg_obj.get_cvg(cvg_recarray, bamfile)
+            if time.time()-t>max_t: 
+                max_t = time.time()-t
+                print("t=%f, max_t=%f"%(time.time()-t,max_t))
+            
+            #print(cvg_obj.g.beg, cvg_obj.g.end)
             #cvg_obj.print_summary()
             summary_outrows.extend(cvg_obj.get_summary_dicts())
             summary_simple_outrows.append(cvg_obj.get_simple_summary_dict())
             summary_by_exon_outrows.extend(cvg_obj.get_by_exon_dicts())
-
+            
             if o.binned_cvg:
                 binned_cvg_outrows.extend(cvg_obj.get_binned_cvg_dicts(o.n_cvg_bins))
             if o.CDS_start_stop:

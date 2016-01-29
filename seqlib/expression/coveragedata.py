@@ -1,8 +1,8 @@
 import numpy as np
 import scipy.stats as scp_stats
 import pandas as pd
-
-import pysam_ext.pysam_ext as pysam_ext
+import pysam
+import pysamstats
 import itertools
 import time
 import pdb
@@ -40,14 +40,16 @@ def get_l_r_UTR_exons(exons, coding_exons):
     
     for ex in exons:
         if ex[1]>coding_ex_l[0]:
-            l_UTR_exons.append([ex[0],coding_ex_l[0]])
+            if coding_ex_l[0]-ex[0] >0:
+                l_UTR_exons.append(tuple([ex[0],coding_ex_l[0]]))
             break
         else:
             l_UTR_exons.append(ex)
     
     for ex in exons[::-1]:
         if ex[0]<coding_ex_r[1]:
-            r_UTR_exons.append([coding_ex_r[1],ex[1]])
+            if ex[1]-coding_ex_r[1] >0:
+                r_UTR_exons.append(tuple([coding_ex_r[1],ex[1]]))
             break
         else:
             r_UTR_exons.append(ex)
@@ -114,58 +116,99 @@ class CoverageData():
         else:
             return False
 
-    def c_get_seg_cvg(self, bamfile, contig, s, e):
-        iter = bamfile.pileup(contig, s, e, truncate = True)
-        cvg = pysam_ext.get_seg_cvg(iter, e-s)
-        return cvg
-
-    def get_seg_cvg(self, bamfile, contig, s, e):
-        return self.c_get_seg_cvg(bamfile, contig, s, e)
-        """
-        iter = bamfile.pileup(contig, s, e, truncate = True)
-        cvg = np.zeros(e-s, dtype=np.int)
-        for col in iter:
-            n_non_del = np.sum(np.array([read.is_del==0 for read in col.pileups]))
-            cvg[col.pos-s] = n_non_del
-        print("py: %d %f"%(np.sum(cvg),t))
-        return cvg
-        """
-    
-    def get_cvg_over_loci(self, bamfile, loci):
+    def get_cvg_from_bam(self, bamfile, loci):
+         
         cvgs = []
+        positions = []
+        full_len = 0
         for loc in loci:
-            cvgs.append(self.get_seg_cvg(bamfile, 
-                                         self.contig, 
-                                         loc[0], 
-                                         loc[1]))
+            s,e = loc
+            full_len+=e-s
+            cvg_recarray = pysamstats.load_nondel_coverage(bamfile, 
+                                                           chrom=self.contig, 
+                                                           start=s, 
+                                                           end=e, 
+                                                           max_depth=64000,
+                                                           pad=True)
+            assert np.amax(cvg_recarray.reads_all)<=64000
+            cvgs.append(cvg_recarray.reads_all)
+        
         return np.concatenate(cvgs)
     
+    def get_cvg_over_loci(self, cvg_recarray, bamfile, loci):
+        
+        loci = sorted(loci)
+        if cvg_recarray is None:
+            return self.get_cvg_from_bam(bamfile, loci)
+        
+        starts = [e[0] for e in loci]
+        ends = [e[1] for e in loci]
+        full_len = np.sum([e[1]-e[0] for e in loci])
+        exon_size_offsets = np.cumsum([0]+[e[1]-e[0] for e in loci])
+        
+        s_idx = np.searchsorted(cvg_recarray.pos, starts)
+        e_idx = np.searchsorted(cvg_recarray.pos, ends)
+        """
+        ###potentially faster but buggy###
+        t=time.time() 
+        idx_coords = np.concatenate([np.arange(s_idx[i],e_idx[i]) for i in range(len(starts))])
+        pos_offsets = np.concatenate([np.repeat(starts[i]-exon_size_offsets[i],e_idx[i]-s_idx[i]) for i in range(len(starts))])
+        poses = cvg_recarray.pos[idx_coords]
+        cvg = cvg_recarray.reads_all[idx_coords]
+        padded_cvg = np.zeros(full_len)
+        offset_poses = poses-pos_offsets
+        padded_cvg[offset_poses] = cvg
+        t2 = time.time()-t
+        """ 
 
-    def get_cvg(self, bamfile):
+        padded_cvg = np.zeros(full_len)
+        curr_pos = 0
+        for i in range(len(starts)):
+            idx_coords = np.arange(s_idx[i],e_idx[i])
+            cvg = cvg_recarray.reads_all[idx_coords]
+            poses = cvg_recarray.pos[idx_coords]
+            offset_poses = poses - starts[i]
+            padded_cvg[offset_poses+curr_pos] = cvg
+            curr_pos += ends[i]-starts[i]
         
-        self.UTR_5p_cvg = self.get_cvg_over_loci(bamfile, self.UTR_5p_exons)
-        self.UTR_3p_cvg = self.get_cvg_over_loci(bamfile, self.UTR_3p_exons)
-        self.CDS_cvg = self.get_cvg_over_loci(bamfile, self.coding_exons)
+        """
+        IF the coverage exceeds the max allowed in default recarray, then 
+        use an alternate approach
+        """
+        if padded_cvg.shape[0]>0 and np.amax(padded_cvg)>=8000:
+            return self.get_cvg_from_bam(bamfile, loci)
+
+        return padded_cvg
+    
+    
+    def get_mean_median(self, cvg):
+        if cvg.shape[0] == 0:
+            return 0,0
+        else:
+            return np.mean(cvg), np.median(cvg)
+
+    def get_cvg(self, cvg_recarray, bamfile):
+        self.UTR_5p_cvg = self.get_cvg_over_loci(cvg_recarray, bamfile, self.UTR_5p_exons)
+        self.UTR_3p_cvg = self.get_cvg_over_loci(cvg_recarray, bamfile, self.UTR_3p_exons)
+        self.CDS_cvg = self.get_cvg_over_loci(cvg_recarray, bamfile, self.coding_exons)
         
-        self.UTR_5p_mu  = np.mean(self.UTR_5p_cvg)
-        self.UTR_3p_mu  =  np.mean(self.UTR_3p_cvg)
-        self.CDS_mu = np.mean(self.CDS_cvg)
-        
-        self.UTR_5p_median  = np.median(self.UTR_5p_cvg)
-        self.UTR_3p_median  =  np.median(self.UTR_3p_cvg)
-        self.CDS_median = np.median(self.CDS_cvg)
+
+        self.UTR_5p_mu, self.UTR_5p_median  = self.get_mean_median(self.UTR_5p_cvg)
+        self.UTR_3p_mu, self.UTR_3p_median  =  self.get_mean_median(self.UTR_3p_cvg)
+        self.CDS_mu, self.CDS_median = self.get_mean_median(self.CDS_cvg)
         
         cat_cvg = np.concatenate([self.CDS_cvg, 
                                   self.UTR_5p_cvg, 
                                   self.UTR_3p_cvg])
-
-        self.GENE_mu = np.mean(cat_cvg)
-        self.GENE_median = np.median(cat_cvg)
+        
+        self.GENE_mu, self.GENE_median = self.get_mean_median(cat_cvg)
         
     def get_binned_cvg(self, vect, n_bins):
         """
         Returning the mean
         """
+        #CURRENTLY BORKEN BECAUSE CVG doesn't have the 0s 
+        exit(1)
         return scp_stats.binned_statistic(np.arange(vect.shape[0]),
                                           vect, 
                                           bins = n_bins)[0]
@@ -204,7 +247,6 @@ class CoverageData():
                 "UTR_3p_median" : self.UTR_3p_median, 
                 "GENE_mu":self.GENE_mu,
                 "GENE_median":self.GENE_median}
-                
 
     def get_simple_summary_dict(self):
         dict = self.get_info_dict()
