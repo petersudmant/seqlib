@@ -1,5 +1,5 @@
 from bx.intervals.intersection import Interval, IntervalTree
-from bx.intervals.intersection import ClusterTree
+from bx.intervals.cluster import ClusterTree
 
 class ClusterTool(object):
     """
@@ -22,7 +22,7 @@ class ClusterTool(object):
         
         self.cluster_trees_by_contig[contig].insert(s,e,idx)
                     
-    def getregions(self):
+    def get_regions(self):
         ret = {}
         for contig, tree in self.cluster_trees_by_contig.items():
             ret_list = []
