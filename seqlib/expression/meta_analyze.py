@@ -110,14 +110,14 @@ if __name__=="__main__":
                                                       chrom=contig, 
                                                       start=0, 
                                                       end=contig_lengths[contig])
+        print("time to load contig: %fs"%(time.time()-t))
+        sys.stdout.flush()
         """
         #FOR TESTING
         cvg_recarray = pysamstats.load_nondel_coverage(bamfile, 
                                                       chrom=contig, 
                                                       start=0, 
                                                       end=5000000)
-        print("time to load contig: %fs"%(time.time()-t))
-        sys.stdout.flush()
         """
 
         for i, cvg_obj in enumerate(cvg_objs):
