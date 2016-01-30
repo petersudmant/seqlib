@@ -112,26 +112,17 @@ if __name__=="__main__":
                                                       end=contig_lengths[contig])
         print("time to load contig: %fs"%(time.time()-t))
         sys.stdout.flush()
-        """
-        #FOR TESTING
-        cvg_recarray = pysamstats.load_nondel_coverage(bamfile, 
-                                                      chrom=contig, 
-                                                      start=0, 
-                                                      end=5000000)
-        """
 
         for i, cvg_obj in enumerate(cvg_objs):
             total_assessed +=1
             
             t = time.time()
-            #if cvg_obj.g.beg != 100706650: continue
             cvg_obj.get_cvg(cvg_recarray, bamfile)
             if time.time()-t>max_t: 
                 max_t = time.time()-t
                 print("t=%f, max_t=%f"%(time.time()-t,max_t))
+                sys.stdout.flush()
             
-            #print(cvg_obj.g.beg, cvg_obj.g.end)
-            #cvg_obj.print_summary()
             summary_outrows.extend(cvg_obj.get_summary_dicts())
             summary_simple_outrows.append(cvg_obj.get_simple_summary_dict())
             summary_by_exon_outrows.extend(cvg_obj.get_by_exon_dicts())
@@ -140,9 +131,6 @@ if __name__=="__main__":
                 binned_cvg_outrows.extend(cvg_obj.get_binned_cvg_dicts(o.n_cvg_bins))
             if o.CDS_start_stop:
                 CDS_start_stop_outrows.extend(cvg_obj.get_CDS_start_stop_dicts())
-            #if i>10:
-            #    break
-        #break
         
     T_summary = pd.DataFrame(summary_outrows)
     T_summary.to_csv(o.fn_out_summary, index=False, sep="\t")

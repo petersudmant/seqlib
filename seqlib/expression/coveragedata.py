@@ -6,7 +6,7 @@ import pysamstats
 import itertools
 import time
 import pdb
-
+import sys
 
 def longest_coding_t(g):
 
@@ -116,8 +116,15 @@ class CoverageData():
         else:
             return False
 
-    def get_cvg_from_bam(self, bamfile, loci):
-         
+    def get_cvg_from_bam(self, bamfile, loci, max_depth=64000, level=1):
+        prefix = "".join(["\t" for i in range(level)])
+        mn,mx = min([l[0] for l in loci]), max([l[1] for l in loci])
+        print_str_1 =  "%s fetching from bam (recursion:%d, max_depth=%d"%(prefix, level, max_depth)
+        print_str_2 =  "%s %s:%d-%d %s"%(prefix, self.contig, mn, mx, self.g.names[0])
+        print(print_str_1)
+        print(print_str_2)
+        sys.stdout.flush()
+        
         cvgs = []
         positions = []
         full_len = 0
@@ -128,9 +135,11 @@ class CoverageData():
                                                            chrom=self.contig, 
                                                            start=s, 
                                                            end=e, 
-                                                           max_depth=64000,
+                                                           max_depth=max_depth,
                                                            pad=True)
-            assert np.amax(cvg_recarray.reads_all)<=64000
+            if np.amax(cvg_recarray.reads_all)>=max_depth:
+                return self.get_cvg_from_bam(bamfile, loci, max_depth=max_depth*2, level=level+1)
+                        
             cvgs.append(cvg_recarray.reads_all)
         
         return np.concatenate(cvgs)
@@ -140,14 +149,15 @@ class CoverageData():
         loci = sorted(loci)
         if cvg_recarray is None:
             return self.get_cvg_from_bam(bamfile, loci)
-        
+         
         starts = [e[0] for e in loci]
         ends = [e[1] for e in loci]
         full_len = np.sum([e[1]-e[0] for e in loci])
         exon_size_offsets = np.cumsum([0]+[e[1]-e[0] for e in loci])
-        
-        s_idx = np.searchsorted(cvg_recarray.pos, starts)
-        e_idx = np.searchsorted(cvg_recarray.pos, ends)
+        t=time.time() 
+        s_idx = np.searchsorted(cvg_recarray.pos, np.array(starts,'int32'))
+        e_idx = np.searchsorted(cvg_recarray.pos, np.array(ends, 'int32'))
+
         """
         ###potentially faster but buggy###
         t=time.time() 
@@ -160,7 +170,6 @@ class CoverageData():
         padded_cvg[offset_poses] = cvg
         t2 = time.time()-t
         """ 
-
         padded_cvg = np.zeros(full_len)
         curr_pos = 0
         for i in range(len(starts)):
@@ -192,7 +201,6 @@ class CoverageData():
         self.UTR_3p_cvg = self.get_cvg_over_loci(cvg_recarray, bamfile, self.UTR_3p_exons)
         self.CDS_cvg = self.get_cvg_over_loci(cvg_recarray, bamfile, self.coding_exons)
         
-
         self.UTR_5p_mu, self.UTR_5p_median  = self.get_mean_median(self.UTR_5p_cvg)
         self.UTR_3p_mu, self.UTR_3p_median  =  self.get_mean_median(self.UTR_3p_cvg)
         self.CDS_mu, self.CDS_median = self.get_mean_median(self.CDS_cvg)
