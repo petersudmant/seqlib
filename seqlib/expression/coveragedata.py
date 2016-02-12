@@ -139,9 +139,11 @@ class CoverageData():
                                                            pad=True)
             if np.amax(cvg_recarray.reads_all)>=max_depth:
                 return self.get_cvg_from_bam(bamfile, loci, max_depth=max_depth*2, level=level+1)
-                        
-            cvgs.append(cvg_recarray.reads_all)
-        
+            
+            cvg_recarray.pos
+            s_idx, e_idx = np.searchsorted(cvg_recarray.pos, np.array(loc,'int32'))
+            cvgs.append(cvg_recarray.reads_all[s_idx:e_idx])
+
         return np.concatenate(cvgs)
     
     def get_cvg_over_loci(self, cvg_recarray, bamfile, loci):

@@ -4,7 +4,6 @@ import numpy as np
 import scipy.stats as scp_stats
 import pandas as pd
 
-import pysam_ext.pysam_ext as pysam_ext
 from coveragedata import CoverageData
 
 import logging
@@ -92,7 +91,7 @@ if __name__=="__main__":
     bp_cov_tables = []
     for sample in o.samples:
         cvg_obj = CoverageData(g_obj)
-        bp_cvg_rows = cvg_obj.get_cvg(bamfiles[sample])
+        bp_cvg_rows = cvg_obj.get_cvg(None, bamfiles[sample])
         bp_cvg_rows = cvg_obj.get_bp_cvg_dicts()
         T = pd.DataFrame(bp_cvg_rows)
         T['sample'] = sample
