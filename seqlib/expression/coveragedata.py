@@ -241,22 +241,40 @@ class CoverageData():
                                  cds_len = self.CDS_l)
         print(pattern)
     
-    def get_info_dict(self):
-        return {"gene" : self.g.names[0],
-                "contig" : self.contig,
-                "start" : self.g.beg,
-                "end" : self.g.end,
-                "CDS_len" : self.CDS_l,
-                "UTR_5p_len" : self.UTR_5p_l,
-                "UTR_3p_len" : self.UTR_3p_l,
-                "CDS_mu" : self.CDS_mu,
-                "UTR_5p_mu" : self.UTR_5p_mu,
-                "UTR_3p_mu" : self.UTR_3p_mu,
-                "CDS_median" : self.CDS_median,
-                "UTR_5p_median" : self.UTR_5p_median,
-                "UTR_3p_median" : self.UTR_3p_median, 
-                "GENE_mu":self.GENE_mu,
-                "GENE_median":self.GENE_median}
+    def get_info_dict(self, include_csv=True):
+        
+        strand = "+"
+        if not self.g.strand:
+            strand = "-"
+
+        if include_csv:
+            return {"gene" : self.g.names[0],
+                    "ENSEMBL_ID": self.g.gene_id,
+                    "contig" : self.contig,
+                    "start" : self.g.beg,
+                    "end" : self.g.end,
+                    "strand": strand,
+                    "CDS_len" : self.CDS_l,
+                    "UTR_5p_len" : self.UTR_5p_l,
+                    "UTR_3p_len" : self.UTR_3p_l,
+                    "CDS_mu" : self.CDS_mu,
+                    "UTR_5p_mu" : self.UTR_5p_mu,
+                    "UTR_3p_mu" : self.UTR_3p_mu,
+                    "CDS_median" : self.CDS_median,
+                    "UTR_5p_median" : self.UTR_5p_median,
+                    "UTR_3p_median" : self.UTR_3p_median, 
+                    "GENE_mu":self.GENE_mu,
+                    "GENE_median":self.GENE_median}
+        else:
+            return {"gene" : self.g.names[0],
+                    "ENSEMBL_ID": self.g.gene_id,
+                    "contig" : self.contig,
+                    "start" : self.g.beg,
+                    "end" : self.g.end,
+                    "strand": strand,
+                    "CDS_len" : self.CDS_l,
+                    "UTR_5p_len" : self.UTR_5p_l,
+                    "UTR_3p_len" : self.UTR_3p_l}
 
     def get_simple_summary_dict(self):
         dict = self.get_info_dict()
@@ -313,54 +331,63 @@ class CoverageData():
             dicts.append(d2)
         return dicts
 
-    def get_by_exon_dicts(self):
+    def get_by_exon_info_dicts(self):
+        return self.get_by_exon_dicts(include_cvg = False)
+
+    def get_by_exon_dicts(self, include_cvg=True):
         return_dicts = []
         for i, UTR_5p_e in enumerate(self.UTR_5p_exons):
-            d = self.get_info_dict()
+            d = self.get_info_dict(include_csv = include_cvg)
             s,e  = UTR_5p_e
             s_i, e_i = self.RNAcoord_UTR_5p_exons[i]
             
-            mu =  np.mean(self.UTR_5p_cvg[s_i:e_i])
-            med = np.median(self.UTR_5p_cvg[s_i:e_i])
-
             d.update({"type": "5p_UTR",
                       "exon":i,
                       "exon_start":s,
-                      "exon_end":e,
-                      "mu_cvg": mu, 
-                      "median_cvg": med})
+                      "exon_end":e})
+            
+            if include_cvg:
+                mu =  np.mean(self.UTR_5p_cvg[s_i:e_i])
+                med = np.median(self.UTR_5p_cvg[s_i:e_i])
+                d.update({"mu_cvg": mu, 
+                          "median_cvg": med})
+
             return_dicts.append(d)
         
         for i, CDS_e in enumerate(self.coding_exons):
-            d = self.get_info_dict()
+            d = self.get_info_dict(include_csv = include_cvg)
             s,e  = CDS_e
             s_i, e_i = self.RNAcoord_coding_exons[i]
-
-            mu =  np.mean(self.CDS_cvg[s_i:e_i])
-            med = np.median(self.CDS_cvg[s_i:e_i])
 
             d.update({"type": "CDS",
                       "exon":i,
                       "exon_start":s,
-                      "exon_end":e,
-                      "mu_cvg": mu,
-                      "median_cvg": med})
+                      "exon_end":e})
+            
+            if include_cvg:
+                mu =  np.mean(self.CDS_cvg[s_i:e_i])
+                med = np.median(self.CDS_cvg[s_i:e_i])
+                d.update({"mu_cvg": mu,
+                          "median_cvg": med})
+
             return_dicts.append(d)
         
         for i, UTR_3p_e in enumerate(self.UTR_3p_exons):
-            d = self.get_info_dict()
+            d = self.get_info_dict(include_csv = include_cvg)
             s,e  = UTR_3p_e
             s_i, e_i = self.RNAcoord_UTR_3p_exons[i]
-            
-            mu =  np.mean(self.UTR_3p_cvg[s_i:e_i])
-            med = np.median(self.UTR_3p_cvg[s_i:e_i])
             
             d.update({"type": "3p_UTR",
                       "exon":i,
                       "exon_start":s,
-                      "exon_end":e,
-                      "mu_cvg": mu,
-                      "median_cvg": med})
+                      "exon_end":e})
+
+            if include_cvg:
+                mu =  np.mean(self.UTR_3p_cvg[s_i:e_i])
+                med = np.median(self.UTR_3p_cvg[s_i:e_i])
+                d.update({"mu_cvg": mu,
+                          "median_cvg": med})
+
             return_dicts.append(d)
 
         return return_dicts
