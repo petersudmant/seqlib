@@ -20,6 +20,7 @@ if __name__=="__main__":
     parser.add_argument("--fn_input_gff")
     parser.add_argument("--fn_out_dir", default="miso_index")
     parser.add_argument("--force_contig", default=None)
+    parser.add_argument("--force_feature", default=None)
     o = parser.parse_args()
     
     fa = FastaHack(o.fn_fasta)
@@ -39,9 +40,16 @@ if __name__=="__main__":
         os.mkdir("{outdir}/bed".format(outdir=o.fn_out_dir))
     if not os.path.exists("{outdir}/info".format(outdir=o.fn_out_dir)):
         os.mkdir("{outdir}/info".format(outdir=o.fn_out_dir))
+    
+    if o.force_feature:
+        splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, 
+                                                                  contigs=contigs,
+                                                                  features=[o.force_feature])
+    else:
+        splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, 
+                                                                  contigs=contigs)
 
-    splice_graphs_by_contig = sg.init_splice_graphs_from_gff3(o.fn_input_gff, 
-                                                              contigs=contigs)
+
     m_util = mu.MisoUtils(sg_by_contig = splice_graphs_by_contig,
                           contig_sizes = contig_sizes,
                           fn_info = "{outdir}/info/info.df".format(outdir=o.fn_out_dir))

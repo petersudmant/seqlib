@@ -12,6 +12,7 @@ from sys import stderr
 from fastahack import FastaHack
 
 from bx.intervals.intersection import Interval, IntervalTree
+import sys
 
 trans = string.maketrans('ATCGatcg', 'TAGCtacg')
 
@@ -526,6 +527,7 @@ def init_splice_graphs_from_gff3(fn_gff, **kwargs):
                 if len(feature.sub_features)<min_exons:
                     continue
                 n_kept +=1
+                sys.stdout.flush()
                 t = Transcript.init_from_feature(contig, feature)
                 #alt_ss = t.get_all_3pSS(contig_seq)
 
