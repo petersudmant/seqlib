@@ -1,6 +1,7 @@
 import argparse
 import primer3
-from fastahack import FastaHack
+#from fastahack import FastaHack
+import pysam
 import os
 import pdb
 
@@ -10,7 +11,6 @@ class PrimerDesign(object):
     def __init__(self, **kwargs):
         
         mispriming_species = kwargs.get("mispriming_lib", "rodent")
-        
         cwd = os.path.dirname(os.path.abspath(__file__))
         mispriming_libs = {"human":"%s/mispriming_libs/HUMAN_AND_SIMPLE.fa"%cwd, 
                            "mouse":"%s/mispriming_libs/RODENT_AND_SIMPLE.fa"%cwd,
@@ -41,10 +41,11 @@ class PrimerDesign(object):
                           'PRIMER_RIGHT_TM']
 
     def load_mispriming_lib(self, fn_mispriming_fa):
-        fa = FastaHack(fn_mispriming_fa)
+        #fa = FastaHack(fn_mispriming_fa)
+        fa = pysam.FastaFile(fn_mispriming_fa)
         self.mispriming_dict = {}
-        for contig in fa.names:
-            self.mispriming_dict[contig] = fa.get_sequence(contig)[:]
+        for contig in fa.references:
+            self.mispriming_dict[contig] = fa.fetch(contig)
 
     def get_primers(self, **kwargs):
         """
