@@ -32,6 +32,7 @@ def longest_coding_t(g):
 def get_l_r_UTR_exons(exons, coding_exons):
     """
     NEED TO MAKE l_UTR_exons and r_UTR_exons
+    ####!!! REQUIRED INPUTS ARE BOTH SORTED!!!!!
     """
     coding_ex_l, coding_ex_r = coding_exons[0], coding_exons[-1]
     
@@ -280,7 +281,7 @@ class CoverageData():
         dict = self.get_info_dict()
         return dict
     
-    def get_bp_cvg_dicts(self):
+    def get_bp_cvg_dicts(self, keep_zeros=False):
             
         dicts = []
         
@@ -288,27 +289,36 @@ class CoverageData():
         UTR_3p_poses = list(itertools.chain(*[range(e[0],e[1]) for e in self.UTR_3p_exons]))
         cds_exon_poses = list(itertools.chain(*[range(e[0],e[1]) for e in self.coding_exons]))
         
+        genome_positions = sorted(UTR_5p_poses+cds_exon_poses+UTR_3p_poses)
+        if not self.strand:
+            genome_positions = genome_positions[::-1]
+
+        genome_to_transcript = {pos:i for i,pos in enumerate(genome_positions)}
+
         for i in xrange(self.UTR_5p_cvg.shape[0]):
-            if self.UTR_5p_cvg[i]!=0:
+            if self.UTR_5p_cvg[i]!=0 or keep_zeros:
                 d = self.get_info_dict()
                 d.update({"type" : "5p_UTR",
                            "pos" : UTR_5p_poses[i],
+                           "t_pos" : genome_to_transcript[UTR_5p_poses[i]],
                            "cvg" : self.UTR_5p_cvg[i]})
                 dicts.append(d)
 
         for i in xrange(self.UTR_3p_cvg.shape[0]):
-            if self.UTR_3p_cvg[i]!=0:
+            if self.UTR_3p_cvg[i]!=0 or keep_zeros:
                 d = self.get_info_dict()
                 d.update({"type" : "3p_UTR",
                            "pos" : UTR_3p_poses[i],
+                           "t_pos" : genome_to_transcript[UTR_3p_poses[i]],
                            "cvg" : self.UTR_3p_cvg[i]})
                 dicts.append(d)
 
         for i in xrange(self.CDS_cvg.shape[0]):
-            if self.CDS_cvg[i]!=0:
+            if self.CDS_cvg[i]!=0 or keep_zeros:
                 d = self.get_info_dict()
                 d.update({"type" : "CDS",
                            "pos" : cds_exon_poses[i],
+                           "t_pos" : genome_to_transcript[cds_exon_poses[i]],
                            "cvg" : self.CDS_cvg[i]})
                 dicts.append(d)
         

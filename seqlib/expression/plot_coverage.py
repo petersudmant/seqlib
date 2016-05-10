@@ -26,7 +26,7 @@ def get_polygon(d, s, e, height=1):
                      "y":-w})
     return dicts
 
-def get_gene_model(cvg_obj):
+def get_genome_gene_model(cvg_obj):
     
     outrows = []
     for i,e in enumerate(cvg_obj.UTR_5p_exons):
@@ -45,6 +45,17 @@ def get_gene_model(cvg_obj):
     
     return outrows
     
+def get_gene_model(cvg_obj):
+    outrows = []
+    
+    cvg_obj.UTR_5p_l
+    cvg_obj.UTR_3p_l
+    cvg_obj.CDS_l
+   
+    outrows.extend(get_polygon({"type":"UTR_5p", "id":"UTR_5p_0"}, 0, cvg_obj.UTR_5p_l))
+    outrows.extend(get_polygon({"type":"CDS", "id":"CDS_0"}, cvg_obj.UTR_5p_l, cvg_obj.UTR_5p_l+cvg_obj.CDS_l, height=2))
+    outrows.extend(get_polygon({"type":"UTR_3p", "id":"UTR_5p_0"}, cvg_obj.UTR_5p_l+cvg_obj.CDS_l, cvg_obj.UTR_5p_l+cvg_obj.CDS_l+cvg_obj.UTR_3p_l))
+    return outrows
     
 if __name__=="__main__":
 
@@ -58,6 +69,7 @@ if __name__=="__main__":
 
     parser.add_argument("--fn_out_cvg", required=True)
     parser.add_argument("--fn_out_gene_model", required=True)
+    parser.add_argument("--fn_out_genome_gene_model", required=True)
     parser.add_argument("--gene", required=True, default=None)
     parser.add_argument("--gtf_ID", required=True)
 
@@ -92,7 +104,7 @@ if __name__=="__main__":
     for sample in o.samples:
         cvg_obj = CoverageData(g_obj)
         bp_cvg_rows = cvg_obj.get_cvg(None, bamfiles[sample])
-        bp_cvg_rows = cvg_obj.get_bp_cvg_dicts()
+        bp_cvg_rows = cvg_obj.get_bp_cvg_dicts(keep_zeros=True)
         T = pd.DataFrame(bp_cvg_rows)
         T['sample'] = sample
         T['time'] = times[sample]
@@ -102,9 +114,13 @@ if __name__=="__main__":
     T = pd.concat(bp_cov_tables)
     T.to_csv(o.fn_out_cvg, index=False, sep="\t")
     
+    gene_model_rows = get_genome_gene_model(cvg_obj)
+    T_g = pd.DataFrame(gene_model_rows)
+    T_g.to_csv(o.fn_out_genome_gene_model, sep="\t", index=False)
+        
+    #########
     gene_model_rows = get_gene_model(cvg_obj)
     T_g = pd.DataFrame(gene_model_rows)
     T_g.to_csv(o.fn_out_gene_model, sep="\t", index=False)
-     
 
 

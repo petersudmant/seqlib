@@ -34,7 +34,7 @@ annot = t_cvg %>%
             summarize(y=max(cvg))
 
 annot$x = xmin 
-
+annot = data.frame(annot)
 theme_no_x_axis = theme(axis.text.x=element_blank(),
                         axis.line.x=element_blank(),
                         axis.ticks.x=element_blank())
@@ -54,7 +54,8 @@ colors = c(colors,colors,colors)
 g1=ggplot(t_cvg)+
     geom_area(aes(x=pos,y=cvg,fill=celltype))+
     facet_grid(sample~., scales="free_y")+
-    scale_x_continuous("",lim=c(xmin,xmax))+scale_y_continuous("")+
+    scale_x_continuous("",lim=c(xmin,xmax))+
+    scale_y_continuous("")+
     scale_fill_manual(values=colors)+
     geom_text(data=annot, aes(x=x, y=y+5, label=sample),size=1.5,hjust=0) +
     theme_classic()+
