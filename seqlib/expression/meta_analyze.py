@@ -7,7 +7,7 @@ import pandas as pd
 import tables
 
 from coveragedata import CoverageData 
-from h5fullgenecvg import h5FullGeneCvg
+from h5fullgenecvg import h5FullGeneCvg_writer
 
 import logging
 import pysam
@@ -111,7 +111,7 @@ if __name__=="__main__":
     full_h5 = None
     
     if o.fn_out_full_h5:
-        full_h5 = h5FullGeneCvg(o.fn_out_full_h5)
+        full_h5 = h5FullGeneCvg_writer(o.fn_out_full_h5)
 
     max_t=0
     total_assessed = 0

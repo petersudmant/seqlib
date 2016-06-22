@@ -3,7 +3,8 @@ from coveragedata import CoverageData
 import numpy as np
 
 
-class h5FullGeneCvg(object):
+class h5FullGeneCvg_writer(object):
+    
     def __init__(self, fn):
         self.h5 = tables.openFile(fn, mode='w')
         
