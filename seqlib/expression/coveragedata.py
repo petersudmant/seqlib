@@ -148,7 +148,10 @@ class CoverageData():
         return np.concatenate(cvgs)
     
     def get_cvg_over_loci(self, cvg_recarray, bamfile, loci):
-        
+        """
+        NOTE: while I don't use padded version of the array getter, 
+        the final object returned has the 0s all padded in!
+        """
         loci = sorted(loci)
         if cvg_recarray is None:
             return self.get_cvg_from_bam(bamfile, loci)
@@ -198,6 +201,8 @@ class CoverageData():
             return 0,0
         else:
             return np.mean(cvg), np.median(cvg)
+    
+        
 
     def get_cvg(self, cvg_recarray, bamfile):
         self.UTR_5p_cvg = self.get_cvg_over_loci(cvg_recarray, bamfile, self.UTR_5p_exons)
@@ -208,17 +213,27 @@ class CoverageData():
         self.UTR_3p_mu, self.UTR_3p_median  =  self.get_mean_median(self.UTR_3p_cvg)
         self.CDS_mu, self.CDS_median = self.get_mean_median(self.CDS_cvg)
         
-        cat_cvg = np.concatenate([self.CDS_cvg, 
-                                  self.UTR_5p_cvg, 
-                                  self.UTR_3p_cvg])
+        """
+            make a cvg view of the whole RNA
+        """
+        if self.strand:
+            self.RNA_cvg_view = np.concatenate([self.UTR_5p_cvg, 
+                                                self.CDS_cvg, 
+                                                self.UTR_3p_cvg])
+        else:
+            self.RNA_cvg_view = np.concatenate([self.UTR_5p_cvg[::-1], 
+                                                self.CDS_cvg[::-1], 
+                                                self.UTR_3p_cvg[::-1]])
         
-        self.GENE_mu, self.GENE_median = self.get_mean_median(cat_cvg)
+        self.RNA_cvg_view_START = self.UTR_5p_cvg.shape[0]
+        self.RNA_cvg_view_STOP = self.UTR_5p_cvg.shape[0] + self.CDS_cvg.shape[0] -3
+        
+        self.GENE_mu, self.GENE_median = self.get_mean_median(self.RNA_cvg_view)
         
     def get_binned_cvg(self, vect, n_bins):
         """
         Returning the mean
         """
-        #CURRENTLY BORKEN BECAUSE CVG doesn't have the 0s 
         exit(1)
         return scp_stats.binned_statistic(np.arange(vect.shape[0]),
                                           vect, 
@@ -454,11 +469,51 @@ class CoverageData():
         return dicts
 
 
-    def get_CDS_start_stop_dicts(self):
-        """
-        START CODON -50 3 +100
-        STOP CODON -100 3 +100
-        """
+    def get_CDS_start_dicts(self, start_5p=50, start_3p=100):
+        return self.get_bp_dict(self.RNA_cvg_view_START - start_5p, 
+                                self.RNA_cvg_view_START + start_5p, 
+                                self.RNA_cvg_view_START, 
+                                "START")
+
+    def get_CDS_stop_dicts(self, stop_5p=100, stop_3p=100):
+        return self.get_bp_dict(self.RNA_cvg_view_STOP - stop_5p, 
+                                self.RNA_cvg_view_STOP + stop_5p, 
+                                self.RNA_cvg_view_STOP, 
+                                "STOP")
+    
+    def get_5p_dicts(self, dist=250):
+        return self.get_bp_dict(0,
+                                dist,
+                                0,
+                                "5p")
+    
+    def get_3p_dicts(self, dist=250):
+        return self.get_bp_dict(self.RNA_cvg_view.shape[0]-dist-1,
+                                self.RNA_cvg_view.shape[0],
+                                self.RNA_cvg_view.shape[0],
+                                "3p")
+
+    def get_bp_dict(self, start, end, center_coord, label):
+        
+        dicts =  []  
+        sum_cvg = np.sum(self.RNA_cvg_view[start:end])
+        
+        if start < 0 or end > self.RNA_cvg_view.shape[0]:
+            return []
+
+        for i in range(start,end):
+            bp_dict = self.get_info_dict()
+            bp_dict.update({"type" : label,
+                            "pos" : i-center_coord,
+                            "cvg" : self.RNA_cvg_view[i],
+                            "sum_cvg" : sum_cvg, 
+                            "strand" : self.strand })
+            dicts.append(bp_dict)
+        
+        return dicts
+
+
+    def __get_CDS_stop_dicts(self, stop_3p=100, stop_5p=100):
         start_3p = 50
         start_5p = 100
         
