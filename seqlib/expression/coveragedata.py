@@ -59,17 +59,25 @@ def get_l_r_UTR_exons(exons, coding_exons):
 
 class CoverageData():
 
-    def __init__(self, g, typ = "virtual_gene"):
+    def __init__(self, g, typ = "virtual_gene", transcript_id = None):
         
         self.g = g
         self.strand = self.g.strand
-        
+        self.TID = "meta"
+        if transcript_id != None:
+            typ = "TID"
         if typ == "virtual_gene":
             self.contig = "chr" in g.contig and g.contig or "chr%s"%g.contig
             self.exons = sorted(g.virtual_exons)
             self.coding_exons = sorted(g.virtual_coding_exons)
         elif typ == "longest_coding_transcript":
             self.exons, self.coding_exons, self.contig = longest_coding_t(g)
+        elif typ == "TID":
+            self.TID = transcript_id 
+            transcript = filter(lambda x: x.cdna_id == transcript_id, g.transcripts)[0]
+            self.contig = "chr" in g.contig and g.contig or "chr%s"%g.contig
+            self.exons = sorted(transcript.get_exons())
+            self.coding_exons = sorted(transcript.get_coding_exons())
         else:
             assert True, "method %s not supported"%(typ)
         
@@ -266,6 +274,7 @@ class CoverageData():
         if include_csv:
             return {"gene" : self.g.names[0],
                     "ENSEMBL_ID": self.g.gene_id,
+                    "TID": self.TID,
                     "contig" : self.contig,
                     "start" : self.g.beg,
                     "end" : self.g.end,

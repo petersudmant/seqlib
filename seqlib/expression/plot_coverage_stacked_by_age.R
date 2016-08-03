@@ -9,6 +9,7 @@ args = cmdArgs()
 fn_cvg = cmdArg("fn_cvg")
 fn_gene = cmdArg("fn_gene_model")
 fn_output = cmdArg("fn_output")
+midpoint = cmdArg("midpoint",30)
 
 t=read.table(fn_cvg, header=TRUE,sep="\t")
 t$age = t$time

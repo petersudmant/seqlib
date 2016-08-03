@@ -66,11 +66,13 @@ if __name__=="__main__":
     parser.add_argument("--samples", required=True, nargs="+")
     parser.add_argument("--celltypes", required=True, nargs="+")
     parser.add_argument("--times", required=True, nargs="+")
+    parser.add_argument("--groups", required=True, nargs="+")
 
     parser.add_argument("--fn_out_cvg", required=True)
     parser.add_argument("--fn_out_gene_model", required=True)
     parser.add_argument("--fn_out_genome_gene_model", required=True)
     parser.add_argument("--gene", required=True, default=None)
+    parser.add_argument("--transcript_id", required=False, default=None)
     parser.add_argument("--gtf_ID", required=True)
 
     parser.add_argument("--fn_logfile", default="/dev/null")
@@ -81,11 +83,13 @@ if __name__=="__main__":
     
     bamfiles = {}
     times = {}
+    groups = {}
     celltypes = {}
     for i, sample in enumerate(o.samples):
         print(sample)
         bamfiles[sample] = pysam.AlignmentFile(o.fn_bams[i], 'rb')
         times[sample] = o.times[i]
+        groups[sample] = o.groups[i]
         celltypes[sample] = o.celltypes[i]
         
     species_id, gtf_path, genes = get_indexed_genes_for_identifier(o.fn_gtf_index,
@@ -97,17 +101,17 @@ if __name__=="__main__":
         if o.gene in g.names:
             g_obj = g
             break
-    
     assert g_obj!=None, "gene name {name} not found".format(o.gene)
     
     bp_cov_tables = []
     for sample in o.samples:
-        cvg_obj = CoverageData(g_obj)
+        cvg_obj = CoverageData(g_obj, transcript_id = o.transcript_id)
         bp_cvg_rows = cvg_obj.get_cvg(None, bamfiles[sample])
         bp_cvg_rows = cvg_obj.get_bp_cvg_dicts(keep_zeros=True)
         T = pd.DataFrame(bp_cvg_rows)
         T['sample'] = sample
         T['time'] = times[sample]
+        T['group'] = groups[sample]
         T['celltype'] = celltypes[sample]
         bp_cov_tables.append(T)
     

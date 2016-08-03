@@ -18,7 +18,14 @@ import time
 import sys
 
 
-def get_cvg_objs_by_contig(contig_subset, indiv_gene, genes, tr_contig, min_CDS, min_3p_UTR, min_5p_UTR):
+def get_cvg_objs_by_contig(contig_subset, 
+                           indiv_gene, 
+                           genes, 
+                           tr_contig, 
+                           min_CDS, 
+                           min_3p_UTR, 
+                           min_5p_UTR, 
+                           by_transcript=False):
     
     cvg_objs_by_contig = {}
     for g in genes['protein_coding']:
@@ -30,10 +37,16 @@ def get_cvg_objs_by_contig(contig_subset, indiv_gene, genes, tr_contig, min_CDS,
         
         if not contig in cvg_objs_by_contig:
             cvg_objs_by_contig[contig] = []
-
-        cvg_obj = CoverageData(g)
-        if cvg_obj.pass_size_cutoff(min_CDS, min_3p_UTR, min_5p_UTR):
-            cvg_objs_by_contig[contig].append(cvg_obj)
+        
+        if by_transcript:
+            for t in [t for t in g.transcripts if t.transcript_type_names[t.transcript_type] == "protein_coding"]:
+                cvg_obj = CoverageData(g, transcript_id = t.cdna_id)
+                if cvg_obj.pass_size_cutoff(min_CDS, min_3p_UTR, min_5p_UTR):
+                    cvg_objs_by_contig[contig].append(cvg_obj)
+        else:
+            cvg_obj = CoverageData(g)
+            if cvg_obj.pass_size_cutoff(min_CDS, min_3p_UTR, min_5p_UTR):
+                cvg_objs_by_contig[contig].append(cvg_obj)
 
     for contig in cvg_objs_by_contig.keys():
         cvg_objs_by_contig[contig] = sorted(cvg_objs_by_contig[contig], key = lambda x: x.g.beg) 
@@ -69,6 +82,8 @@ if __name__=="__main__":
     parser.add_argument("--min_CDS", default=0, type=int)
     parser.add_argument("--min_3p_UTR", default=0, type=int)
     parser.add_argument("--min_5p_UTR", default=0, type=int)
+    
+    parser.add_argument("--by_transcript", default=False, action="store_true")
 
     o = parser.parse_args()
     
@@ -95,7 +110,8 @@ if __name__=="__main__":
                                                 tr_contig,
                                                 o.min_CDS,
                                                 o.min_3p_UTR,
-                                                o.min_5p_UTR)
+                                                o.min_5p_UTR,
+                                                by_transcript=o.by_transcript)
     summary_outrows = []
     summary_simple_outrows = []
     summary_by_exon_outrows = []
