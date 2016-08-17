@@ -67,7 +67,8 @@ class h5FullGeneCvg_writer(object):
         self.a_cvg.append(cvg_obj.RNA_cvg_view)
         self.a_idx.append(np.ones(cvg_obj.RNA_cvg_view.shape[0])*self.curr_idx)
         
-        self.GeneIDs.append(cvg_obj.g.gene_id)
+        #self.GeneIDs.append(cvg_obj.g.gene_id)
+        self.GeneIDs.append(cvg_obj.gene_id)
         self.lengths.append(cvg_obj.RNA_cvg_view.shape[0])
         self.starts.append(cvg_obj.RNA_cvg_view_START)
         self.stops.append(cvg_obj.RNA_cvg_view_STOP)

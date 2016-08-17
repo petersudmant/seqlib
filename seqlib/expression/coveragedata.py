@@ -8,6 +8,7 @@ import time
 import pdb
 import sys
 
+
 def longest_coding_t(g):
 
     longest_t = None
@@ -57,22 +58,155 @@ def get_l_r_UTR_exons(exons, coding_exons):
 
     return l_UTR_exons, r_UTR_exons
 
+def get_cvg_objs_by_contig(gtf_genes, meta_type, **kwargs):
+    contig_subset = kwargs.get("contig_subset", None)
+    indiv_gene = kwargs.get("indiv_gene", None)
+    tr_contig = kwargs.get("tr_contig", lambda x: "chr" in x and x or "chr%s"%x)
+    min_CDS = kwargs.get("min_CDS",0)
+    min_3p_UTR = kwargs.get("min_3p_UTR",0)
+    min_5p_UTR = kwargs.get("min_5p_UTR",0)
+    
+    cvg_objs_by_contig = {}
+    for g in gtf_genes['protein_coding']:
+        contig = tr_contig(g.contig)
+
+        if not contig in contig_subset:
+            continue
+        
+        if indiv_gene and not indiv_gene in g.names:
+            continue
+        elif indiv_gene and indiv_gene in g.names:
+            print g.names
+
+        if not contig in cvg_objs_by_contig:
+            cvg_objs_by_contig[contig] = []
+        
+            
+        if meta_type == "transcript":
+            for t in g.transcripts: 
+                if t.transcript_type_names[t.transcript_type] != "protein_coding":
+                    continue
+                cvg_obj = CoverageData(g, meta_type = "transcript", 
+                                       transcript_id = t.cdna_id)
+                if cvg_obj.pass_size_cutoff(min_CDS, min_3p_UTR, min_5p_UTR):
+                    cvg_objs_by_contig[contig].append(cvg_obj)
+
+        elif meta_type == "constitutive_single_stop":
+            stops = get_stops(g)
+            #ensure gene has 1 stop codon 
+            if len(stops)>0 and np.all(np.array(stops)==stops[0]):
+                cvg_obj = CoverageData(g, meta_type="constitutive_single_stop")
+                
+                if cvg_obj.pass_size_cutoff(min_CDS, min_3p_UTR, min_5p_UTR):
+                    cvg_objs_by_contig[contig].append(cvg_obj)
+        else:
+            assert True, "type not defined"
+
+    for contig in cvg_objs_by_contig.keys():
+        cvg_objs_by_contig[contig] = sorted(cvg_objs_by_contig[contig], key = lambda x: x.g.beg) 
+    
+    return cvg_objs_by_contig
+
+
+def get_constitutive_part(exon_lists):
+    
+    n = len(exon_lists)
+    
+    if n==1:
+        return exon_lists[0]
+    ###### 
+    
+    events_by_coord = [] 
+    for enum, e_list in enumerate(exon_lists):
+        for e in e_list:
+            event = {"start":e[0], 
+                     "end":e[1], 
+                     "enum":enum}
+            
+            events_by_coord.append({"coord":e[0],
+                                    "event":event,
+                                    "type":"start"})
+            events_by_coord.append({"coord":e[1],
+                                    "event":event,
+                                    "type":"end"})
+
+    events_by_coord = sorted(events_by_coord, key=lambda x: x["coord"])
+    
+    curr_count = 0
+    c_exons = []
+
+    for event in events_by_coord:
+        if event['type'] == "start":
+            if curr_count == n-1:
+                c_exons.append([event['coord'],-1])
+            curr_count += 1 
+        if event['type'] == "end":
+            if curr_count == n:
+                c_exons[-1][1] = event['coord']
+            curr_count -=1 
+    
+    return c_exons
+
+def get_constitutive_exons(g):
+
+    coding_ts = [t for t in g.transcripts if 
+                    t.transcript_type_names[t.transcript_type] == "protein_coding"]
+    
+    exons, coding_exons = [], [] 
+    for t in coding_ts:
+        exons.append(t.get_exons())
+        coding_exons.append(t.get_coding_exons())
+    
+    c_exons = get_constitutive_part(exons)
+    c_coding_exons = get_constitutive_part(coding_exons)
+
+    return sorted(c_exons), sorted(c_coding_exons)
+
+def get_stops(g):
+    
+    if g.strand:
+        stops = [t.coding_end for t in g.transcripts if t.transcript_type_names[t.transcript_type] == "protein_coding"]
+    else:
+        stops = [t.coding_beg for t in g.transcripts if t.transcript_type_names[t.transcript_type] == "protein_coding"]
+    
+    return stops
+
 class CoverageData():
 
-    def __init__(self, g, typ = "virtual_gene", transcript_id = None):
-        
+    def __init__(self, g, **kwargs):
+        meta_type = kwargs.get("meta_type", "constitutive_single_stop")
+        transcript_id = kwargs.get("transcript_id", None)
         self.g = g
         self.strand = self.g.strand
-        self.TID = "meta"
-        if transcript_id != None:
+        
+        if transcript_id:
+            self.gene_id = transcript_id
+            self.TID = transcript_id
             typ = "TID"
-        if typ == "virtual_gene":
+        else:
+            self.gene_id = g.gene_id
+            self.TID = "meta"
+
+        if meta_type == "constitutive_single_stop":
+            """
+            only constitive exons and ensure there is only a single STOP codon 
+            """
+            stops = get_stops(g)
+            assert np.all(np.array(stops) == stops[0]), "differing STOPS!"
+            
+            self.contig = "chr" in g.contig and g.contig or "chr%s"%g.contig
+            self.exons, self.coding_exons = get_constitutive_exons(g)
+
+        elif meta_type == "virtual_gene":
+            """
+            virtual gene is inclusive of all exons
+            """
             self.contig = "chr" in g.contig and g.contig or "chr%s"%g.contig
             self.exons = sorted(g.virtual_exons)
             self.coding_exons = sorted(g.virtual_coding_exons)
-        elif typ == "longest_coding_transcript":
+        elif meta_type == "longest_coding_transcript":
             self.exons, self.coding_exons, self.contig = longest_coding_t(g)
-        elif typ == "TID":
+        elif meta_type == "transcript":
             self.TID = transcript_id 
             transcript = filter(lambda x: x.cdna_id == transcript_id, g.transcripts)[0]
             self.contig = "chr" in g.contig and g.contig or "chr%s"%g.contig

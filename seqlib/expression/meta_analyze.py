@@ -6,7 +6,7 @@ import pandas as pd
 
 import tables
 
-from coveragedata import CoverageData 
+from coveragedata import *
 from h5fullgenecvg import h5FullGeneCvg_writer
 
 import logging
@@ -18,60 +18,22 @@ import time
 import sys
 
 
-def get_cvg_objs_by_contig(contig_subset, 
-                           indiv_gene, 
-                           genes, 
-                           tr_contig, 
-                           min_CDS, 
-                           min_3p_UTR, 
-                           min_5p_UTR, 
-                           by_transcript=False):
-    
-    cvg_objs_by_contig = {}
-    for g in genes['protein_coding']:
-        contig = tr_contig(g.contig)
-        if not contig in contig_subset:
-            continue
-        if indiv_gene and not indiv_gene in g.names:
-            continue
-        
-        if not contig in cvg_objs_by_contig:
-            cvg_objs_by_contig[contig] = []
-        
-        if by_transcript:
-            for t in [t for t in g.transcripts if t.transcript_type_names[t.transcript_type] == "protein_coding"]:
-                cvg_obj = CoverageData(g, transcript_id = t.cdna_id)
-                if cvg_obj.pass_size_cutoff(min_CDS, min_3p_UTR, min_5p_UTR):
-                    cvg_objs_by_contig[contig].append(cvg_obj)
-        else:
-            cvg_obj = CoverageData(g)
-            if cvg_obj.pass_size_cutoff(min_CDS, min_3p_UTR, min_5p_UTR):
-                cvg_objs_by_contig[contig].append(cvg_obj)
-
-    for contig in cvg_objs_by_contig.keys():
-        cvg_objs_by_contig[contig] = sorted(cvg_objs_by_contig[contig], key = lambda x: x.g.beg) 
-    
-    return cvg_objs_by_contig
-
-    
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--fn_gtf_index", required=True)
     parser.add_argument("--fn_bam", required=True)
     parser.add_argument("--fn_fasta", required=True)
-    parser.add_argument("--fn_out_summary_simple", required=True)
-
+    parser.add_argument("--meta_type", required=True)
+    
+    parser.add_argument("--fn_out_summary_simple", required=False)
     parser.add_argument("--fn_out_summary", required=False)
     parser.add_argument("--fn_out_summary_by_exon", required=False)
-
     parser.add_argument("--fn_out_binned_cvg", required=False)
-    
     parser.add_argument("--fn_out_CDS_start", required=False)
     parser.add_argument("--fn_out_CDS_stop", required=False)
     parser.add_argument("--fn_out_5p", required=False)
     parser.add_argument("--fn_out_3p", required=False)
-    
     parser.add_argument("--fn_out_full_h5", required=False)
     
     parser.add_argument("--individual_gene", required=False, default=None)
@@ -79,12 +41,7 @@ if __name__=="__main__":
     parser.add_argument("--contig_subset", default=None)
     parser.add_argument("--fn_logfile", default="/dev/null")
     parser.add_argument("--n_cvg_bins", default=10, type=int)
-    parser.add_argument("--min_CDS", default=0, type=int)
-    parser.add_argument("--min_3p_UTR", default=0, type=int)
-    parser.add_argument("--min_5p_UTR", default=0, type=int)
     
-    parser.add_argument("--by_transcript", default=False, action="store_true")
-
     o = parser.parse_args()
     
     logger = logging.getLogger(o.fn_logfile)
@@ -102,16 +59,10 @@ if __name__=="__main__":
     else:
         contig_subset = ["chr%d"%i for i in range(1,24)]
     
-    tr_contig = lambda x:  "chr" in x and x or "chr%s"%x
-    
-    cvg_objs_by_contig = get_cvg_objs_by_contig(contig_subset, 
-                                                o.individual_gene,
-                                                genes, 
-                                                tr_contig,
-                                                o.min_CDS,
-                                                o.min_3p_UTR,
-                                                o.min_5p_UTR,
-                                                by_transcript=o.by_transcript)
+    cvg_objs_by_contig = get_cvg_objs_by_contig(genes,
+                                                o.meta_type,
+                                                contig_subset = contig_subset, 
+                                                indiv_gene = o.individual_gene)
     summary_outrows = []
     summary_simple_outrows = []
     summary_by_exon_outrows = []
@@ -176,8 +127,9 @@ if __name__=="__main__":
             if o.fn_out_3p:
                 end_3p_outrows.extend(cvg_obj.get_3p_dicts())
         
-    T_summary_simple = pd.DataFrame(summary_simple_outrows)
-    T_summary_simple.to_csv(o.fn_out_summary_simple, index=False, sep="\t")
+    if o.fn_out_summary_simple: 
+        T_summary_simple = pd.DataFrame(summary_simple_outrows)
+        T_summary_simple.to_csv(o.fn_out_summary_simple, index=False, sep="\t")
     
     if o.fn_out_summary: 
         T_summary = pd.DataFrame(summary_outrows)
