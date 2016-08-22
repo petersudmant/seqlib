@@ -86,11 +86,13 @@ class h5FullGeneCvg_writer(object):
 
 class h5FullGeneCvg(object):
     
-    def __init__(self, fn, fn_annot, annot_key):
-        
+    def __init__(self, fn, **kwargs):
         """
         idx = 1 idx per transcript / gene
         """
+        
+        fn_annot = kwargs.get("fn_annot")
+        annot_key = kwargs.get("fn_annotation_key")
  
         sys.stderr.write("loading {fn}...".format(fn=fn))
         self.h5 = tables.openFile(fn, mode='r')
@@ -263,30 +265,69 @@ class h5FullGeneCvg(object):
 
         sys.stderr.write("done\n")
         return S 
+    
+    def get_R_tc(self):
+        sys.stderr.write("getting R centered on termination (STOP) codon centered...")
+        
+        outrows = []
+        n=0
+        for idx, g in self.grouped_by_gene:
+            stop = self.inf.ix[idx]['stop'] 
+            length = self.inf.ix[idx]['length']
+            
+            mu_post_stop = np.mean(g.cvg[stop:])
+            mu_pre_stop = np.mean(g.cvg[:stop])
+            med_post_stop = np.median(g.cvg[stop:])
+            med_pre_stop= np.median(g.cvg[:stop])
+            outrows.append({"idx":idx,
+                            "length":length,
+                            "mu_post_stop":mu_post_stop,
+                            "mu_pre_stop":mu_pre_stop,
+                            "med_post_stop":med_post_stop,
+                            "med_pre_stop":med_pre_stop,
+                            "R_tc":max(1,mu_post_stop)/max(1,mu_pre_stop),
+                            "R_tc_median":max(1,med_post_stop)/max(1,med_pre_stop)})
+
+        sys.stderr.write("finished individual gene parsing...")
+        
+        T = pd.DataFrame(outrows)
+        T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
+        
+        sys.stderr.write("done\n")
+        return T 
  
 if __name__=="__main__":
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--fn_h5", required=True)
-    parser.add_argument("--fn_out_full_len_meta", required=True)
-    parser.add_argument("--fn_out_3p_bp_meta", required=True)
-    parser.add_argument("--fn_out_stop_bp_meta", required=True)
+    parser.add_argument("--fn_out_full_len_meta", required=False)
+    parser.add_argument("--fn_out_3p_bp_meta", required=False)
+    parser.add_argument("--fn_out_stop_bp_meta", required=False)
+    parser.add_argument("--fn_out_R_tc", required=False)
     parser.add_argument("--fn_annotation", default=None)
     parser.add_argument("--fn_annotation_key", default=None)
     parser.add_argument("--name", required=True)
     o = parser.parse_args()
     
-    h5_obj = h5FullGeneCvg(o.fn_h5, o.fn_annotation, o.fn_annotation_key)
+    h5_obj = h5FullGeneCvg(o.fn_h5, fn_annot = o.fn_annotation, fn_annot_key = o.fn_annotation_key)
     
-    STOP_stats = h5_obj.get_stop_bp_meta()
-    STOP_stats['name'] = o.name
-    STOP_stats.to_csv(o.fn_out_stop_bp_meta, sep="\t", index=False, compression="gzip")
+    if o.fn_out_stop_bp_meta:
+        STOP_stats = h5_obj.get_stop_bp_meta()
+        STOP_stats['name'] = o.name
+        STOP_stats.to_csv(o.fn_out_stop_bp_meta, sep="\t", index=False, compression="gzip")
     
-    UTR_3p_stats = h5_obj.get_3p_bp_meta()
-    UTR_3p_stats['name'] = o.name
-    UTR_3p_stats.to_csv(o.fn_out_3p_bp_meta, sep="\t", index=False, compression="gzip")
+    if o.fn_out_3p_bp_meta:
+        UTR_3p_stats = h5_obj.get_3p_bp_meta()
+        UTR_3p_stats['name'] = o.name
+        UTR_3p_stats.to_csv(o.fn_out_3p_bp_meta, sep="\t", index=False, compression="gzip")
 
-    percentile_stats = h5_obj.get_full_len_binned_stats()
-    percentile_stats['name'] = o.name
-    percentile_stats.to_csv(o.fn_out_full_len_meta, sep="\t", index=False, compression="gzip")
+    if o.fn_out_full_len_meta:
+        percentile_stats = h5_obj.get_full_len_binned_stats()
+        percentile_stats['name'] = o.name
+        percentile_stats.to_csv(o.fn_out_full_len_meta, sep="\t", index=False, compression="gzip")
+    
+    if o.fn_out_R_tc:
+        R_tc = h5_obj.get_R_tc()
+        R_tc['name'] = o.name
+        R_tc.to_csv(o.fn_out_R_tc, sep="\t", index=False, compression="gzip")
     
