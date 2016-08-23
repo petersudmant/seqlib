@@ -274,12 +274,14 @@ class h5FullGeneCvg(object):
         for idx, g in self.grouped_by_gene:
             stop = self.inf.ix[idx]['stop'] 
             length = self.inf.ix[idx]['length']
-            
+            gene = self.inf.ix[idx]['GeneID']
+
             mu_post_stop = np.mean(g.cvg[stop:])
             mu_pre_stop = np.mean(g.cvg[:stop])
             med_post_stop = np.median(g.cvg[stop:])
             med_pre_stop= np.median(g.cvg[:stop])
             outrows.append({"idx":idx,
+                            "gene":gene,
                             "length":length,
                             "mu_post_stop":mu_post_stop,
                             "mu_pre_stop":mu_pre_stop,
