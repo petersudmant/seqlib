@@ -92,8 +92,8 @@ class h5FullGeneCvg(object):
         """
         
         fn_annot = kwargs.get("fn_annot")
-        annot_key = kwargs.get("fn_annotation_key")
- 
+        annot_key_val = kwargs.get("annot_key_val")
+
         sys.stderr.write("loading {fn}...".format(fn=fn))
         self.h5 = tables.openFile(fn, mode='r')
         
@@ -128,10 +128,12 @@ class h5FullGeneCvg(object):
         
         if fn_annot:
             self.annot = True
+            key,value = annot_key_val.split(":")
             t = pd.read_csv(fn_annot, header=0, sep="\t")
-            self.t_annot = pd.merge(self.inf, t, left_on = "GeneID", right_on="ENSEMBL_ID")[['idx',annot_key]]
-            self.t_annot.columns = ['idx', 'annot']
-        
+            self.t_annot = pd.merge(self.inf, t, left_on = "GeneID", right_on=key)[['idx',value]]
+            self.t_annot.columns = ['idx', "annot_%s"%value]
+            self.full_stats = pd.merge(self.full_stats, self.t_annot)
+
         sys.stderr.write("done\n")
     
     def add_annotation(self, S, T):
@@ -181,8 +183,10 @@ class h5FullGeneCvg(object):
         S.columns = col_names
         S['pos'] = S.index 
         
+        """
         if self.annot:
             S = self.add_annotation(S, T)
+        """
         
         sys.stderr.write("done\n")
         return S 
@@ -221,8 +225,10 @@ class h5FullGeneCvg(object):
         S.columns = col_names
         S['pos'] = S.index 
         
+        """
         if self.annot:
             S = self.add_annotation(S, T)
+        """
           
         sys.stderr.write("done\n")
         return S 
@@ -260,8 +266,10 @@ class h5FullGeneCvg(object):
         S.columns = col_names
         S['pos'] = S.index 
         
+        """
         if self.annot:
             S = self.add_annotation(S, T)
+        """
 
         sys.stderr.write("done\n")
         return S 
@@ -290,6 +298,7 @@ class h5FullGeneCvg(object):
                             "R_tc":max(1,mu_post_stop)/max(1,mu_pre_stop),
                             "R_tc_median":max(1,med_post_stop)/max(1,med_pre_stop)})
 
+        
         sys.stderr.write("finished individual gene parsing...")
         
         T = pd.DataFrame(outrows)
@@ -307,29 +316,29 @@ if __name__=="__main__":
     parser.add_argument("--fn_out_stop_bp_meta", required=False)
     parser.add_argument("--fn_out_R_tc", required=False)
     parser.add_argument("--fn_annotation", default=None)
-    parser.add_argument("--fn_annotation_key", default=None)
-    parser.add_argument("--name", required=True)
+    parser.add_argument("--annotation_key_value", default=None)
+    parser.add_argument("--sample_name", required=True)
     o = parser.parse_args()
-    
-    h5_obj = h5FullGeneCvg(o.fn_h5, fn_annot = o.fn_annotation, fn_annot_key = o.fn_annotation_key)
+     
+    h5_obj = h5FullGeneCvg(o.fn_h5, fn_annot = o.fn_annotation, annot_key_val = o.annotation_key_value)
     
     if o.fn_out_stop_bp_meta:
         STOP_stats = h5_obj.get_stop_bp_meta()
-        STOP_stats['name'] = o.name
+        STOP_stats['sample_name'] = o.sample_name
         STOP_stats.to_csv(o.fn_out_stop_bp_meta, sep="\t", index=False, compression="gzip")
     
     if o.fn_out_3p_bp_meta:
         UTR_3p_stats = h5_obj.get_3p_bp_meta()
-        UTR_3p_stats['name'] = o.name
+        UTR_3p_stats['sample_name'] = o.sample_name
         UTR_3p_stats.to_csv(o.fn_out_3p_bp_meta, sep="\t", index=False, compression="gzip")
 
     if o.fn_out_full_len_meta:
         percentile_stats = h5_obj.get_full_len_binned_stats()
-        percentile_stats['name'] = o.name
+        percentile_stats['sample_name'] = o.sample_name
         percentile_stats.to_csv(o.fn_out_full_len_meta, sep="\t", index=False, compression="gzip")
     
     if o.fn_out_R_tc:
         R_tc = h5_obj.get_R_tc()
-        R_tc['name'] = o.name
+        R_tc['sample_name'] = o.sample_name
         R_tc.to_csv(o.fn_out_R_tc, sep="\t", index=False, compression="gzip")
     

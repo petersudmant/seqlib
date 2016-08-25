@@ -21,7 +21,8 @@ if __name__=="__main__":
     parser.add_argument("--fn_gtf_index", required=True)
     parser.add_argument("--gtf_ID", required=True)
     parser.add_argument("--fn_logfile", default="/dev/null")
-    parser.add_argument("--fn_out")
+    parser.add_argument("--fn_out_gene_ids")
+    parser.add_argument("--fn_out_transcript_ids")
     
     o = parser.parse_args()
     
@@ -31,15 +32,22 @@ if __name__=="__main__":
                                                                    logger, 
                                                                    o.gtf_ID)
     
-    outrows = []
+    outrow_gene_ids = []
+    outrow_transcript_ids = []
     for g in genes['protein_coding']:
         name = g.names[0]
         gene_id = g.gene_id
+        outrow_gene_ids.append({"gene_id":gene_id,
+                                "name":name})
         for t in g.transcripts:
-            outrows.append({"gene_id":gene_id,
-                            "transcript_id":t.cdna_id,
-                            "name":name})
+            outrow_transcript_ids.append({"gene_id":gene_id,
+                                          "transcript_id":t.cdna_id,
+                                          "name":name})
     
     
-    t = pd.DataFrame(outrows)
-    t.to_csv(o.fn_out, sep="\t", index=False)
+    t_gene_ids = pd.DataFrame(outrow_gene_ids)
+    t_gene_ids.to_csv(o.fn_out_gene_ids, sep="\t", index=False)
+    
+    t_transcript_ids = pd.DataFrame(outrow_transcript_ids)
+    t_transcript_ids.to_csv(o.fn_out_transcript_ids, sep="\t", index=False)
+
