@@ -70,7 +70,7 @@ def get_cvg_objs_by_contig(gtf_genes, meta_type, **kwargs):
     for g in gtf_genes['protein_coding']:
         contig = tr_contig(g.contig)
 
-        if not contig in contig_subset:
+        if (contig_subset is not None) and (contig not in contig_subset):
             continue
         
         if indiv_gene and not indiv_gene in g.names:

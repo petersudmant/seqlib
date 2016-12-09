@@ -60,9 +60,7 @@ if __name__=="__main__":
         contig_subset = ["chr%d"%i for i in range(1,24)]
     
     cvg_objs_by_contig = get_cvg_objs_by_contig(genes,
-                                                o.meta_type,
-                                                contig_subset = contig_subset, 
-                                                indiv_gene = o.individual_gene)
+                                                "constitutive_single_stop")
     summary_outrows = []
     summary_simple_outrows = []
     summary_by_exon_outrows = []

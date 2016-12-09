@@ -91,8 +91,8 @@ class h5FullGeneCvg(object):
         idx = 1 idx per transcript / gene
         """
         
-        fn_annot = kwargs.get("fn_annot")
-        annot_key_val = kwargs.get("annot_key_val")
+        fn_annots = kwargs.get("fn_annots")
+        annot_key_vals = kwargs.get("annot_key_vals")
 
         sys.stderr.write("loading {fn}...".format(fn=fn))
         self.h5 = tables.openFile(fn, mode='r')
@@ -126,54 +126,56 @@ class h5FullGeneCvg(object):
         
         self.annot = False
         
-        if fn_annot:
+        if fn_annots:
             self.annot = True
-            key,value = annot_key_val.split(":")
-            t = pd.read_csv(fn_annot, header=0, sep="\t")
-            self.t_annot = pd.merge(self.inf, t, left_on = "GeneID", right_on=key)[['idx',value]]
-            self.t_annot.columns = ['idx', "annot_%s"%value]
-            self.full_stats = pd.merge(self.full_stats, self.t_annot)
+            for i, fn in enumerate(fn_annots):
+                key,value = annot_key_vals[2*i], annot_key_vals[(2*i)+1] 
+                t = pd.read_csv(fn, header=0, sep="\t")
+                t_annot = pd.merge(self.inf, t, left_on = "GeneID", right_on=key, how="left")[['idx',value]]
+                t_annot.columns = ['idx', "annot_%s"%value]
+                self.full_stats = pd.merge(self.full_stats, t_annot)
 
         sys.stderr.write("done\n")
     
-    def add_annotation(self, S, T):
-        S['annot'] = "all"
-        T = pd.merge(T, self.t_annot, left_on="idx", right_on="idx").reset_index()        
-        S2 = T.groupby(['pos','annot']).describe().unstack()
-        col_names = [".".join(x).rstrip(".")  for x in S2.columns] 
-        S2.columns = col_names
-        S2 = S2.reset_index()
-        S = pd.concat([S,S2])
-        return S 
- 
-    def get_stop_bp_meta(self, n_bp=300):
+    def get_stop_bp_meta(self, n_bp=300, R_tc_filter = None):
         sys.stderr.write("getting stop codon centered...")
         
-        idxs, cvg_by_bp = [], [] 
+        idxs, cvg_by_bp, R_tcs = [], [], []
         n=0
         for idx, g in self.grouped_by_gene:
+            
             stop = self.inf.ix[idx]['stop'] 
             length = self.inf.ix[idx]['length']
-         
+        
+            mu_post_stop = np.mean(g.cvg[stop:])
+            mu_pre_stop = np.mean(g.cvg[:stop])
+            r_R_tc = max(1,mu_post_stop)/max(1,mu_pre_stop)
+            R_tc  = np.log(max(1,mu_post_stop)/max(1,mu_pre_stop))/np.log(2)
+            
             if stop >=n_bp and length >= stop+n_bp+1:
                 cvg_by_bp.append(g.cvg[(stop-n_bp):(stop+n_bp+1)])
                 idxs.append(np.ones(2*n_bp+1)*idx)
+                R_tcs.append(np.ones(2*n_bp+1)*R_tc)
                 n+=1
             
         sys.stderr.write("finished individual gene parsing...")
         
         T = pd.DataFrame({"idx":np.concatenate(idxs), 
+                          "R_tc":np.concatenate(R_tcs),
                           "bp_cvg":np.concatenate(cvg_by_bp),
                           "pos":np.tile(np.arange(-n_bp,n_bp+1),n)})
         
         T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
-        T = T[T['mean']>0]
+        T = T[T['mean']>1]
+
+        if R_tc_filter is not None:
+            T = T[T['R_tc'].apply(R_tc_filter)]
         
         bp_sum = pd.DataFrame(T.groupby("idx").apply(lambda x: np.sum(x['bp_cvg'])))
         bp_sum['idx'] = bp_sum.index
         bp_sum.columns = ['bp_sum', "idx"]
         T = pd.merge(T, bp_sum, left_on="idx", right_on="idx")
-        T['bp_normalized'] = T['bp_cvg']/T['bp_sum']
+        T['bp_normalized'] = T['bp_cvg']/T['sum']
         
         T = T[T['bp_sum']>0]
         
@@ -182,11 +184,6 @@ class h5FullGeneCvg(object):
         
         S.columns = col_names
         S['pos'] = S.index 
-        
-        """
-        if self.annot:
-            S = self.add_annotation(S, T)
-        """
         
         sys.stderr.write("done\n")
         return S 
@@ -207,7 +204,6 @@ class h5FullGeneCvg(object):
         T = pd.DataFrame({"idx":np.concatenate(idxs), 
                           "bp_cvg":np.concatenate(cvg_by_bp),
                           "pos":np.tile(np.arange(-n_bp,0)+1,n)})
-        
         T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
         T = T[T['mean']>0]
         
@@ -225,13 +221,65 @@ class h5FullGeneCvg(object):
         S.columns = col_names
         S['pos'] = S.index 
         
-        """
-        if self.annot:
-            S = self.add_annotation(S, T)
-        """
           
         sys.stderr.write("done\n")
         return S 
+
+    def get_CDS_UTR_split_binned_meta(self, CDS_bins=100, UTR_bins=100):
+        sys.stderr.write("getting full len binned stats...")
+        n_bins_total = CDS_bins + UTR_bins 
+        #########
+        #########
+        #########
+        #########
+
+        idxs = [] 
+        CDS_UTR_by_bin = []
+        R_tcs = []
+        
+        for idx, g in self.grouped_by_gene:
+            stop = self.inf.ix[idx]['stop'] 
+            length = self.inf.ix[idx]['length']
+            
+            CDS_binned = stats.binned_statistic(np.arange(stop), g['cvg'][:stop], bins=CDS_bins)
+            UTR_binned = stats.binned_statistic(np.arange(length-stop), g['cvg'][stop:], bins=UTR_bins)
+            
+            idxs.append(np.ones(n_bins_total)*idx)
+            CDS_UTR_by_bin.append(CDS_binned[0])
+            CDS_UTR_by_bin.append(UTR_binned[0])
+            
+            ###########
+            
+        sys.stderr.write("finished individual gene parsing...")
+
+        n = self.full_stats.shape[0]
+        pos=np.tile(np.arange(n_bins_total),n)
+        T = pd.DataFrame({"idx":np.concatenate(idxs), 
+                          "binned_cvg":np.concatenate(CDS_UTR_by_bin),
+                          "pos":pos,
+                          "pos_offset":pos-CDS_bins})
+        
+        T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
+        #T = T[T['mean']>0]
+        
+        cvg_sum = pd.DataFrame(T.groupby("idx").apply(lambda x: np.sum(x['binned_cvg'])))
+        cvg_sum['idx'] = cvg_sum.index
+        cvg_sum.columns = ['cvg_sum', "idx"]
+        T = pd.merge(T,cvg_sum, left_on="idx", right_on="idx")
+        T['normalized'] = T['binned_cvg']/T['cvg_sum']
+        
+        #T = T[T['cvg_sum']>0]
+         
+        S = T.groupby('pos').describe().unstack()
+        col_names = [".".join(x) for x in S.columns]
+        
+        S.columns = col_names
+        S['pos'] = S.index 
+        
+
+        sys.stderr.write("done\n")
+        return S 
+
 
     def get_full_len_binned_stats(self, nbins=1000):
         sys.stderr.write("getting full len binned stats...")
@@ -266,10 +314,6 @@ class h5FullGeneCvg(object):
         S.columns = col_names
         S['pos'] = S.index 
         
-        """
-        if self.annot:
-            S = self.add_annotation(S, T)
-        """
 
         sys.stderr.write("done\n")
         return S 
@@ -313,19 +357,34 @@ if __name__=="__main__":
     parser.add_argument("--fn_h5", required=True)
     parser.add_argument("--fn_out_full_len_meta", required=False)
     parser.add_argument("--fn_out_3p_bp_meta", required=False)
-    parser.add_argument("--fn_out_stop_bp_meta", required=False)
     parser.add_argument("--fn_out_R_tc", required=False)
-    parser.add_argument("--fn_annotation", default=None)
-    parser.add_argument("--annotation_key_value", default=None)
+    parser.add_argument("--fn_out_stop_bp_meta", required=False)
+    parser.add_argument("--fn_out_stop_bp_meta_filt", required=False)
+    parser.add_argument("--fn_out_CDS_UTR_binned_meta", required=False)
+    parser.add_argument("--lambda_R_tc", required=False)
+     
+    parser.add_argument("--fn_annotations", default=None, nargs = "*")
+    parser.add_argument("--annotation_key_values", default=None, nargs="*")
+
     parser.add_argument("--sample_name", required=True)
     o = parser.parse_args()
      
-    h5_obj = h5FullGeneCvg(o.fn_h5, fn_annot = o.fn_annotation, annot_key_val = o.annotation_key_value)
+    h5_obj = h5FullGeneCvg(o.fn_h5, fn_annots = o.fn_annotations, annot_key_vals = o.annotation_key_values)
+    
+    if o.fn_out_CDS_UTR_binned_meta:
+        stats = h5_obj.get_CDS_UTR_split_binned_meta()
+        stats['sample_name'] = o.sample_name
+        stats.to_csv(o.fn_out_CDS_UTR_binned_meta, sep="\t", index=False, compression="gzip")
     
     if o.fn_out_stop_bp_meta:
         STOP_stats = h5_obj.get_stop_bp_meta()
         STOP_stats['sample_name'] = o.sample_name
         STOP_stats.to_csv(o.fn_out_stop_bp_meta, sep="\t", index=False, compression="gzip")
+    
+    if o.fn_out_stop_bp_meta_filt:
+        STOP_stats = h5_obj.get_stop_bp_meta(R_tc_filter = eval(o.lambda_R_tc))
+        STOP_stats['sample_name'] = o.sample_name
+        STOP_stats.to_csv(o.fn_out_stop_bp_meta_filt, sep="\t", index=False, compression="gzip")
     
     if o.fn_out_3p_bp_meta:
         UTR_3p_stats = h5_obj.get_3p_bp_meta()
