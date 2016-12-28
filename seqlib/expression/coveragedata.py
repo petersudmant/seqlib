@@ -180,7 +180,7 @@ class CoverageData():
         self.strand = self.g.strand
         
         if transcript_id:
-            self.gene_id = transcript_id
+            self.gene_id = g.gene_id
             self.TID = transcript_id
             typ = "TID"
         else:
