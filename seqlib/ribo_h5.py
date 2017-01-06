@@ -361,15 +361,24 @@ def RPFCountTable(args):
                     pos = cvg_ob.coding_exons[0][0]
                 else:
                     pos = cvg_ob.coding_exons[-1][1]
+            elif args.feature=="POLYA":
+                if cvg_ob.strand == 1:
+                    pos = cvg_ob.exons[-1][1]
+                else:
+                    pos = cvg_ob.exons[0][0]
             else:
                 assert False, "no method for feature: %s"%(args.feature) 
 
             cvg_vect =  get_bp_coverage(counts_by_contig, cvg_ob, args.width, pos)
+            cvg_info = get_coverage_info(counts_by_contig, cvg_ob)
+
             for i, pos in enumerate(range(-args.width,args.width)):
                 outrows.append({"tid":cvg_ob.TID,
                                 "gene_id":cvg_ob.gene_id,
                                 "gene_name":cvg_ob.g.names[0],
                                 "cvg":cvg_vect[i],
+                                "CDS_cvg":cvg_info['CDS_cvg'],
+                                "CDS_len":cvg_info['CDS_len'],
                                 "pos":pos,
                                 "feature":args.feature})
 
@@ -486,7 +495,7 @@ if __name__=="__main__":
     parser_makeSum.add_argument("--fn_gtf_index", required=True)
     parser_makeSum.add_argument("--gtf_ID", required=True)
     parser_makeSum.add_argument("--fn_logfile", default='/dev/stderr')
-    parser_makeSum.add_argument("--feature", required=True, choices = ["START","STOP"])
+    parser_makeSum.add_argument("--feature", required=True, choices = ["START","STOP","POLYA"])
     parser_makeSum.add_argument("--width", default=50, type=int)
     parser_makeSum.add_argument("--fn_gene_subset", required=False, default=None)
     parser_makeSum.set_defaults(func=RPFCountTable)
