@@ -5,9 +5,10 @@ import argparse
 import sys
 import pdb
 import scipy.stats as stats
-
-from coveragedata import CoverageData 
-
+import logging
+import pysam
+from coveragedata import *
+from gtf_to_genes import *
 
 class h5FullGeneCvg_writer(object):
     
@@ -319,6 +320,7 @@ class h5FullGeneCvg(object):
         return S 
     
     def get_R_tc(self):
+
         sys.stderr.write("getting R centered on termination (STOP) codon centered...")
         
         outrows = []
@@ -350,54 +352,136 @@ class h5FullGeneCvg(object):
         
         sys.stderr.write("done\n")
         return T 
- 
+
+
+def build_h5(args):
+    
+    logger = logging.getLogger(args.fn_logfile)
+    bamfile = pysam.AlignmentFile(args.fn_bam, 'rb')
+    
+    contig_lengths = {x[0]:x[1] for x in zip(bamfile.references, bamfile.lengths)}
+    
+    species_id, gtf_path, genes = get_indexed_genes_for_identifier(args.fn_gtf_index,
+                                                                   logger, 
+                                                                   args.gtf_ID)
+    if args.meta_type=="constitutive_single_stop":
+        cvg_objs_by_contig = get_cvg_objs_by_contig(genes,"constitutive_single_stop")
+    elif args.meta_type=="all_transcripts": 
+        cvg_objs_by_contig = get_cvg_objs_by_contig(genes,"transcript")
+
+    full_h5 = h5FullGeneCvg_writer(args.fn_out)
+
+    max_t=0
+    total_assessed = 0
+    for contig, cvg_objs in cvg_objs_by_contig.items():
+        if contig not in contig_lengths:
+            continue
+        print("current contig: %s\tassessed: %d"%(contig, total_assessed))
+        t=time.time()
+        cvg_recarray = pysamstats.load_nondel_coverage(bamfile, 
+                                                      chrom=contig, 
+                                                      start=0, 
+                                                      end=contig_lengths[contig])
+        print("time to load contig: %fs"%(time.time()-t))
+        sys.stdout.flush()
+
+        for i, cvg_obj in enumerate(cvg_objs):
+            total_assessed +=1
+            
+            t = time.time()
+            cvg_obj.get_cvg(cvg_recarray, bamfile)
+            if time.time()-t>max_t: 
+                max_t = time.time()-t
+                print("t=%f, max_t=%f"%(time.time()-t,max_t))
+                sys.stdout.flush()
+            
+            full_h5.extend(cvg_obj)
+        
+    full_h5.close()
+
+
+def metaplot(args):
+    
+    h5_obj = h5FullGeneCvg(args.fn_h5, 
+                           fn_annots = args.fn_annotations, 
+                           annot_key_vals = args.annotation_key_values)
+    
+    if args.type =="full_len":
+        percentile_stats = h5_obj.get_full_len_binned_stats()
+        percentile_stats['sample_name'] = args.sample_name
+        percentile_stats.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
+    
+    elif args.type =="3p_nt": 
+        UTR_3p_stats = h5_obj.get_3p_bp_meta()
+        UTR_3p_stats['sample_name'] = args.sample_name
+        UTR_3p_stats.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
+    
+    elif args.type =="stop_nt": 
+        if args.lambda_fun is not None:
+            STOP_stats = h5_obj.get_stop_bp_meta(R_tc_filter = eval(args.lambda_fun))
+        else:
+            STOP_stats = h5_obj.get_stop_bp_meta()
+        STOP_stats['sample_name'] = args.sample_name
+        STOP_stats.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
+    
+    elif args.type =="binned": 
+        stats = h5_obj.get_CDS_UTR_split_binned_meta()
+        stats['sample_name'] = args.sample_name
+        stats.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
+    
+def Rtc(args):
+    
+    h5_obj = h5FullGeneCvg(args.fn_h5, 
+                           fn_annots = args.fn_annotations, 
+                           annot_key_vals = args.annotation_key_values)
+
+    R_tc = h5_obj.get_R_tc()
+    R_tc['sample_name'] = args.sample_name
+    R_tc.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
+
 if __name__=="__main__":
     
     parser = argparse.ArgumentParser()
-    parser.add_argument("--fn_h5", required=True)
-    parser.add_argument("--fn_out_full_len_meta", required=False)
-    parser.add_argument("--fn_out_3p_bp_meta", required=False)
-    parser.add_argument("--fn_out_R_tc", required=False)
-    parser.add_argument("--fn_out_stop_bp_meta", required=False)
-    parser.add_argument("--fn_out_stop_bp_meta_filt", required=False)
-    parser.add_argument("--fn_out_CDS_UTR_binned_meta", required=False)
-    parser.add_argument("--lambda_R_tc", required=False)
-     
-    parser.add_argument("--fn_annotations", default=None, nargs = "*")
-    parser.add_argument("--annotation_key_values", default=None, nargs="*")
+    subparsers = parser.add_subparsers() 
+    
+    #create h5
+    parser_create = subparsers.add_parser("build_h5")
+    parser_create.add_argument("--fn_bam", required=True)
+    parser_create.add_argument("--fn_out", required=True)
+    parser_create.add_argument("--fn_gtf_index", required=True)
+    parser_create.add_argument("--gtf_ID", required=True)
+    parser_create.add_argument("--meta_type", required=True, 
+                                              choices=["constitutive_single_stop",
+                                                       "all_transcripts"])
+    parser_create.add_argument("--fn_logfile", default="/dev/null")
+    parser_create.set_defaults(func=build_h5)
+    
+    #output meta plot measurements
+    parser_metaplot = subparsers.add_parser("metaplot")
+    parser_metaplot.add_argument("--fn_h5", required=True)
+    parser_metaplot.add_argument("--type", required=True, choices=["full_len",
+                                                                   "3p_nt",
+                                                                   "stop_nt",
+                                                                   "binned"])
+    parser_metaplot.add_argument("--fn_out", required=True)
+    parser_metaplot.add_argument("--sample_name", required=True)
+    parser_metaplot.add_argument("--lambda_fun", required=False)
+    parser_metaplot.add_argument("--fn_annotations", default=None, nargs = "*")
+    parser_metaplot.add_argument("--annotation_key_values", default=None, nargs="*")
+    parser_metaplot.set_defaults(func=metaplot)
 
-    parser.add_argument("--sample_name", required=True)
-    o = parser.parse_args()
+    #output Rtc metrics
+    parser_Rtc = subparsers.add_parser("Rtc")
+    parser_Rtc.add_argument("--fn_h5", required=True)
+    parser_Rtc.add_argument("--fn_out", required=True)
+    parser_Rtc.add_argument("--lambda_fun", required=False)
+    parser_Rtc.add_argument("--sample_name", required=True)
+    parser_Rtc.add_argument("--fn_annotations", default=None, nargs = "*")
+    parser_Rtc.add_argument("--annotation_key_values", default=None, nargs="*")
+    parser_Rtc.set_defaults(func=Rtc)
+    
+    args = parser.parse_args()
+    args.func(args)
      
-    h5_obj = h5FullGeneCvg(o.fn_h5, fn_annots = o.fn_annotations, annot_key_vals = o.annotation_key_values)
     
-    if o.fn_out_CDS_UTR_binned_meta:
-        stats = h5_obj.get_CDS_UTR_split_binned_meta()
-        stats['sample_name'] = o.sample_name
-        stats.to_csv(o.fn_out_CDS_UTR_binned_meta, sep="\t", index=False, compression="gzip")
-    
-    if o.fn_out_stop_bp_meta:
-        STOP_stats = h5_obj.get_stop_bp_meta()
-        STOP_stats['sample_name'] = o.sample_name
-        STOP_stats.to_csv(o.fn_out_stop_bp_meta, sep="\t", index=False, compression="gzip")
-    
-    if o.fn_out_stop_bp_meta_filt:
-        STOP_stats = h5_obj.get_stop_bp_meta(R_tc_filter = eval(o.lambda_R_tc))
-        STOP_stats['sample_name'] = o.sample_name
-        STOP_stats.to_csv(o.fn_out_stop_bp_meta_filt, sep="\t", index=False, compression="gzip")
-    
-    if o.fn_out_3p_bp_meta:
-        UTR_3p_stats = h5_obj.get_3p_bp_meta()
-        UTR_3p_stats['sample_name'] = o.sample_name
-        UTR_3p_stats.to_csv(o.fn_out_3p_bp_meta, sep="\t", index=False, compression="gzip")
-
-    if o.fn_out_full_len_meta:
-        percentile_stats = h5_obj.get_full_len_binned_stats()
-        percentile_stats['sample_name'] = o.sample_name
-        percentile_stats.to_csv(o.fn_out_full_len_meta, sep="\t", index=False, compression="gzip")
-    
-    if o.fn_out_R_tc:
-        R_tc = h5_obj.get_R_tc()
-        R_tc['sample_name'] = o.sample_name
-        R_tc.to_csv(o.fn_out_R_tc, sep="\t", index=False, compression="gzip")
     
