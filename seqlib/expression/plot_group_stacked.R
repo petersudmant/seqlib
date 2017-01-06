@@ -103,5 +103,9 @@ gC <- grid.rect(gp=gpar(col="white"))
 gC.widths=gA$widths
 
 pdf(fn_output, width=2.5, height=4.5)
+#png(fn_output, width=2.5, height=4.5, type="cairo")
+#png(fn_output, width=5.5, height=8.5, type="cairo")
+#png(fn_output, width=5.5, height=8.5, type="cairo")
+#jpeg(fn_output, width=2.5, height=4.5)
 grid.arrange(gA, gC, gB, ncol=1, heights=c(.94,.03,.03))
 dev.off()
