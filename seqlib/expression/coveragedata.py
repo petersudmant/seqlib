@@ -183,6 +183,7 @@ class CoverageData():
             self.gene_id = g.gene_id
             self.TID = transcript_id
             typ = "TID"
+            meta_type="transcript"
         else:
             self.gene_id = g.gene_id
             self.TID = "meta"

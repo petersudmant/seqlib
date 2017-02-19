@@ -132,9 +132,9 @@ class h5_ribo(object):
         t = pd.read_csv(fn, sep=" ", header=0)
         self.offsets = {}
         for i, row in t.iterrows():
-            assert row['manual'] != 99
+            assert row['manual'] != -99
             self.offsets[row['len']] = row['manual']
-             
+
     def get_offset_contig_arrays(self, contig):
         assert self.offsets is not None, "need to assign offsets"        
         
@@ -280,9 +280,9 @@ def get_coverage_info(counts_by_contig, cvg_ob):
     
     if cvg_ob.strand == 1:
         start, stop = cvg_ob.coding_exons[0][0], cvg_ob.coding_exons[-1][1] 
-        start_e, stop_e = [[start,start+3]],[[stop-2, stop+1]]
+        start_e, stop_e = [[start,start+3]],[[stop-3, stop]]
     else:
-        start, stop = cvg_ob.coding_exons[-1][1], cvg_ob.coding_exons[0][0]
+        start, stop = cvg_ob.coding_exons[-1][1]-1, cvg_ob.coding_exons[0][0]
         start_e, stop_e = [[start-2,start+1]], [[stop, stop+3]]
     
     strand = cvg_ob.strand 

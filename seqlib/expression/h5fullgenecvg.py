@@ -37,6 +37,13 @@ class h5FullGeneCvg_writer(object):
                                              filters=filt,
                                              expectedrows=20000)
         
+        self.a_TID = self.h5.createEArray(self.h5.root, 
+                                          'transcriptID', 
+                                          tables.StringAtom(20),
+                                          shape=(0,), 
+                                          filters=filt,
+                                          expectedrows=20000)
+        
         self.a_start = self.h5.createEArray(self.h5.root, 
                                             'start', 
                                             tables.UInt16Atom(),
@@ -59,6 +66,7 @@ class h5FullGeneCvg_writer(object):
                                              expectedrows=20000)
         self.curr_idx = 0
         self.GeneIDs = []
+        self.TIDs = []
         self.lengths = []
         self.starts = []
         self.stops = []
@@ -70,6 +78,7 @@ class h5FullGeneCvg_writer(object):
         
         #self.GeneIDs.append(cvg_obj.g.gene_id)
         self.GeneIDs.append(cvg_obj.gene_id)
+        self.TIDs.append(cvg_obj.TID)
         self.lengths.append(cvg_obj.RNA_cvg_view.shape[0])
         self.starts.append(cvg_obj.RNA_cvg_view_START)
         self.stops.append(cvg_obj.RNA_cvg_view_STOP)
@@ -79,6 +88,7 @@ class h5FullGeneCvg_writer(object):
     def close(self):
         
         self.a_GeneID.append(np.array(self.GeneIDs))
+        self.a_TID.append(np.array(self.TIDs))
         self.a_length.append(np.array(self.lengths))
         self.a_start.append(np.array(self.starts))
         self.a_stop.append(np.array(self.stops))
@@ -102,17 +112,20 @@ class h5FullGeneCvg(object):
         self.idx = self.h5.root.idx[:]
 
         self.GeneID = self.h5.root.geneID[:]
+        self.transcriptID = self.h5.root.transcriptID[:]
         self.length = self.h5.root.length[:]
         self.start = self.h5.root.start[:]
         self.stop = self.h5.root.stop[:]
         
         self.inf = pd.DataFrame({"GeneID":self.GeneID,
+                                 "transcriptID":self.transcriptID,
                                  "length":self.length,
                                  "start":self.start,
                                  "stop":self.stop, 
                                  "idx":np.unique(self.idx)})
         
         self.inf = self.inf.set_index("idx", drop=False)
+        self.trancriptID_to_idx = dict(zip(self.inf.transcriptID,self.inf.index))
         
         """
         if "filtering" then filter everything here...
@@ -121,7 +134,11 @@ class h5FullGeneCvg(object):
         self.table = pd.DataFrame({"cvg":self.cvg, "idx":self.idx})
         
         self.grouped_by_gene = self.table.groupby('idx') 
-        self.full_stats = self.grouped_by_gene.agg([np.sum, np.mean, np.std, np.median]).reset_index(level=2, drop=True)
+        self.full_stats = self.grouped_by_gene.agg([np.sum, 
+                                                    np.mean, 
+                                                    np.std, 
+                                                    np.median]).reset_index(level=2, drop=True)
+        
         self.full_stats.columns = ["sum", "mean", "std", "median"]
         self.full_stats['idx'] = self.full_stats.index
         
@@ -137,7 +154,9 @@ class h5FullGeneCvg(object):
                 self.full_stats = pd.merge(self.full_stats, t_annot)
 
         sys.stderr.write("done\n")
-    
+
+
+
     def get_stop_bp_meta(self, n_bp=300, R_tc_filter = None):
         sys.stderr.write("getting stop codon centered...")
         
@@ -319,6 +338,89 @@ class h5FullGeneCvg(object):
         sys.stderr.write("done\n")
         return S 
     
+    def get_stop_bp_heatmap(self, nt=300):
+        sys.stderr.write("getting stop codon centered...")
+        
+        idxs, cvg_by_bp, R_tcs = [], [], []
+        n=0
+        for idx, g in self.grouped_by_gene:
+            if idx % 100==0:
+                sys.stderr.write("%d..."%idx)
+
+            stop = self.inf.ix[idx]['stop'] 
+            length = self.inf.ix[idx]['length']
+        
+            mu_post_stop = np.mean(g.cvg[stop:])
+            mu_pre_stop = np.mean(g.cvg[:stop])
+            r_R_tc = max(1,mu_post_stop)/max(1,mu_pre_stop)
+            R_tc  = np.log(max(1,mu_post_stop)/max(1,mu_pre_stop))/np.log(2)
+            
+            if stop >=nt and length >= stop+nt+1:
+                cvg_by_bp.append(g.cvg[(stop-nt):(stop+nt+1)])
+                idxs.append(np.ones(2*nt+1)*idx)
+                R_tcs.append(np.ones(2*nt+1)*R_tc)
+                n+=1
+            
+        sys.stderr.write("\nfinished individual gene parsing...")
+        
+        T = pd.DataFrame({"idx":np.concatenate(idxs), 
+                          "R_tc":np.concatenate(R_tcs),
+                          "bp_cvg":np.concatenate(cvg_by_bp),
+                          "pos":np.tile(np.arange(-nt,nt+1),n)})
+        
+        T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
+
+        sys.stderr.write("done\n")
+        return T
+    
+    def get_stop_binned_heatmap(self, bins=100):
+        sys.stderr.write("getting STOP centered binned stats...")
+        n_bins_total = 2*bins
+        
+        CDS_bins = bins
+        UTR_bins = bins
+        
+        idxs = [] 
+        CDS_UTR_by_bin = []
+        R_tcs = []
+        
+        for idx, g in self.grouped_by_gene:
+            if idx % 100==0:
+                sys.stderr.write("%d..."%idx)
+            
+            stop = self.inf.ix[idx]['stop'] 
+            length = self.inf.ix[idx]['length']
+
+
+            mu_post_stop = np.mean(g.cvg[stop:])
+            mu_pre_stop = np.mean(g.cvg[:stop])
+            R_tc  = np.log(max(1,mu_post_stop)/max(1,mu_pre_stop))/np.log(2)
+            
+            R_tcs.append(np.ones(2*bins)*R_tc)
+            CDS_binned = stats.binned_statistic(np.arange(stop), g['cvg'][:stop], bins=CDS_bins)
+            UTR_binned = stats.binned_statistic(np.arange(length-stop), g['cvg'][stop:], bins=UTR_bins)
+            
+            idxs.append(np.ones(n_bins_total)*idx)
+            CDS_UTR_by_bin.append(CDS_binned[0])
+            CDS_UTR_by_bin.append(UTR_binned[0])
+            
+        sys.stderr.write("\nfinished individual gene parsing...")
+
+        n = self.full_stats.shape[0]
+        pos=np.tile(np.arange(n_bins_total),n)
+        T = pd.DataFrame({"idx":np.concatenate(idxs), 
+                          "binned_cvg":np.concatenate(CDS_UTR_by_bin),
+                          "R_tc":np.concatenate(R_tcs),
+                          "pos":pos,
+                          "pos_offset":pos-CDS_bins})
+        
+        T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
+
+        sys.stderr.write("done\n")
+
+        return T 
+
+
     def get_R_tc(self):
 
         sys.stderr.write("getting R centered on termination (STOP) codon centered...")
@@ -399,6 +501,28 @@ def build_h5(args):
         
     full_h5.close()
 
+def heatmap(args):
+    
+    h5_obj = h5FullGeneCvg(args.fn_h5, 
+                           fn_annots = args.fn_annotations, 
+                           annot_key_vals = args.annotation_key_values)
+    
+    if args.type =="stop_nt": 
+        STOP_heatmap = h5_obj.get_stop_bp_heatmap(nt=args.size)
+        STOP_heatmap['sample_name'] = args.sample_name
+        STOP_heatmap.to_csv(args.fn_out, 
+                            sep="\t", 
+                            index=False, 
+                            compression="gzip")
+    if args.type =="stop_binned": 
+        STOP_heatmap = h5_obj.get_stop_binned_heatmap(bins=args.size)
+        STOP_heatmap['sample_name'] = args.sample_name
+        STOP_heatmap.to_csv(args.fn_out, 
+                            sep="\t", 
+                            index=False, 
+                            compression="gzip")
+    else:
+        assert True, "no such type %s"%args.type
 
 def metaplot(args):
     
@@ -439,6 +563,31 @@ def Rtc(args):
     R_tc['sample_name'] = args.sample_name
     R_tc.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
 
+def plotCoverage(args):
+    tables = []
+    for i, sample in enumerate(args.samples):
+        fn_h5 = args.fn_h5s[i]
+        h5_obj = h5FullGeneCvg(fn_h5, 
+                               fn_annots = args.fn_annotations, 
+                               annot_key_vals = args.annotation_key_values)
+        idx = h5_obj.trancriptID_to_idx[args.transcript]
+        cvg = h5_obj.cvg[h5_obj.idx==idx]
+        tid_inf = h5_obj.inf.ix[idx]
+        
+        T_out = pd.DataFrame({"cvg":cvg,
+                              "pos":np.arange(cvg.shape[0])})
+        T_out['GeneID'] = tid_inf['GeneID']
+        T_out['transcriptID'] = tid_inf['transcriptID']
+        T_out['length'] = tid_inf['length']
+        T_out['start'] = tid_inf['start']
+        T_out['stop'] = tid_inf['stop']
+
+        T_out['sample'] = sample
+        T_out['gene'] = args.gene
+        tables.append(T_out)
+    T = pd.concat(tables)
+    T.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
+
 if __name__=="__main__":
     
     parser = argparse.ArgumentParser()
@@ -469,6 +618,18 @@ if __name__=="__main__":
     parser_metaplot.add_argument("--fn_annotations", default=None, nargs = "*")
     parser_metaplot.add_argument("--annotation_key_values", default=None, nargs="*")
     parser_metaplot.set_defaults(func=metaplot)
+    
+    #output heatmap data
+    parser_metaplot = subparsers.add_parser("heatmap")
+    parser_metaplot.add_argument("--fn_h5", required=True)
+    parser_metaplot.add_argument("--type", required=True, choices=["stop_nt", "stop_binned"])
+    parser_metaplot.add_argument("--size", required=False, type=int)
+    parser_metaplot.add_argument("--fn_out", required=True)
+    parser_metaplot.add_argument("--sample_name", required=True)
+    parser_metaplot.add_argument("--lambda_fun", required=False)
+    parser_metaplot.add_argument("--fn_annotations", default=None, nargs = "*")
+    parser_metaplot.add_argument("--annotation_key_values", default=None, nargs="*")
+    parser_metaplot.set_defaults(func=heatmap)
 
     #output Rtc metrics
     parser_Rtc = subparsers.add_parser("Rtc")
@@ -479,6 +640,19 @@ if __name__=="__main__":
     parser_Rtc.add_argument("--fn_annotations", default=None, nargs = "*")
     parser_Rtc.add_argument("--annotation_key_values", default=None, nargs="*")
     parser_Rtc.set_defaults(func=Rtc)
+    
+    #output gene coverage 
+    parser_Rtc = subparsers.add_parser("plotCoverage")
+    parser_Rtc.add_argument("--fn_h5s", required=True, nargs="+")
+    parser_Rtc.add_argument("--fn_out", required=True)
+    parser_Rtc.add_argument("--lambda_fun", required=False)
+    parser_Rtc.add_argument("--samples", required=True, nargs="+")
+    parser_Rtc.add_argument("--gene", required=True)
+    parser_Rtc.add_argument("--transcript", required=True)
+    parser_Rtc.add_argument("--fn_annotations", default=None, nargs = "*")
+    parser_Rtc.add_argument("--annotation_key_values", default=None, nargs="*")
+    parser_Rtc.set_defaults(func=plotCoverage)
+    
     
     args = parser.parse_args()
     args.func(args)
