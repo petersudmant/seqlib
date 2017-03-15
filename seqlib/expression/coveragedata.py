@@ -171,6 +171,14 @@ def get_stops(g):
     
     return stops
 
+def get_introns(exons):
+    #assume the exons are ordered by genomic position
+    introns = []
+    
+    for i in xrange(len(exons)-1):
+        introns.append(tuple([exons[i][1],exons[i+1][0]]))
+    return introns
+
 class CoverageData():
 
     def __init__(self, g, **kwargs):
@@ -251,6 +259,21 @@ class CoverageData():
         self.UTR_5p_cvg = None
         self.UTR_3p_cvg = None
         self.CDS_cvg = None
+    
+    def get_transcript_to_genome_coords(self):
+        """
+        a list of positions genomic positions corresponding to the transcript
+        """
+        UTR_5p_poses = list(itertools.chain(*[range(e[0],e[1]) for e in self.UTR_5p_exons]))
+        UTR_3p_poses = list(itertools.chain(*[range(e[0],e[1]) for e in self.UTR_3p_exons]))
+        cds_exon_poses = list(itertools.chain(*[range(e[0],e[1]) for e in self.coding_exons]))
+        
+        genome_positions = sorted(UTR_5p_poses+cds_exon_poses+UTR_3p_poses)
+        if not self.strand:
+            genome_positions = genome_positions[::-1]
+        #genome_to_transcript = {pos:i for i,pos in enumerate(genome_positions)}
+        
+        return genome_positions
 
     def pass_size_cutoff(self, min_CDS, min_3p, min_5p): 
         if self.CDS_l >= min_CDS and \
@@ -440,6 +463,8 @@ class CoverageData():
         dict = self.get_info_dict()
         return dict
     
+
+
     def get_bp_cvg_dicts(self, keep_zeros=False):
             
         dicts = []
