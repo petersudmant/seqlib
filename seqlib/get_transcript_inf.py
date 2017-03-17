@@ -9,6 +9,10 @@ import re
 import pysam
 import sys
 
+from Bio.Seq import Seq
+from Bio.Alphabet import generic_dna
+from collections import defaultdict
+
 trans = string.maketrans('ATCGatcg', 'TAGCtacg')
 def revcomp(s):
     return s.translate(trans)[::-1]
@@ -80,7 +84,23 @@ def get_features(args):
     """
 
     stop_codons = "(?=TGA|TAA|TGA)"
-    
+    all_codons = {"TTT":"F", "TTC":"F", "TTA":"L", "TTG":"L", 
+                  "CTT":"L", "CTC":"L", "CTA":"L", "CTG":"L", 
+                  "ATT":"I", "ATC":"I", "ATA":"I", "ATG":"M", 
+                  "GTT":"V", "GTC":"V", "GTA":"V", "GTG":"V", 
+                  "TCT":"S", "TCC":"S", "TCA":"S", "TCG":"S", 
+                  "CCT":"P", "CCC":"P", "CCA":"P", "CCG":"P", 
+                  "ACT":"T", "ACC":"T", "ACA":"T", "ACG":"T", 
+                  "GCT":"A", "GCC":"A", "GCA":"A", "GCG":"A", 
+                  "TAT":"Y", "TAC":"Y", "TAA":"*", "TAG":"*", 
+                  "CAT":"H", "CAC":"H", "CAA":"Q", "CAG":"Q", 
+                  "AAT":"N", "AAC":"N", "AAA":"K", "AAG":"K", 
+                  "GAT":"D", "GAC":"D", "GAA":"E", "GAG":"E", 
+                  "TGT":"C", "TGC":"C", "TGA":"*", "TGG":"W", 
+                  "CGT":"R", "CGC":"R", "CGA":"R", "CGG":"R", 
+                  "AGT":"S", "AGC":"S", "AGA":"R", "AGG":"R", 
+                  "GGT":"G", "GGC":"G", "GGA":"G", "GGG":"G"}
+
     if args.feature_type == "CDS_CODON":
         codons = "(?=%s)"%("|".join(args.feature_args))
 
@@ -104,16 +124,32 @@ def get_features(args):
             CDS_end = seq_inf['CDS_end']
             CDS_start = seq_inf['CDS_start']
             
-            seq = seq_inf['seq'] 
-            CDS_seq = seq_inf['CDS_seq']
-            UTR_3p_seq = seq_inf['UTR_3p_seq']
+            seq = seq_inf['seq'].upper() 
+            CDS_seq = seq_inf['CDS_seq'].upper()
+            UTR_3p_seq = seq_inf['UTR_3p_seq'].upper()
 
             genome_positions = cvg_obj.get_transcript_to_genome_coords()
             
             if args.feature_type == "UTR_STOP":
                 codon_ps = [m.start()+CDS_end for m in re.finditer(stop_codons,UTR_3p_seq)]
+                if args.feature_n!=None:
+                    codon_ps = codon_ps[:args.feature_n]     
             elif args.feature_type == "CDS_CODON":
                 codon_ps = [m.start()+CDS_start for m in re.finditer(codons,CDS_seq) if m.start() %3==0]
+                if args.feature_n!=None:
+                    codon_ps = codon_ps[:args.feature_n]     
+            elif args.feature_type == "CDS_ALL_CODONS":
+                if args.feature_n!=None:
+                    codon_poses = defaultdict(list)
+                    for i in range(len(CDS_seq)/3):
+                        codon_poses[CDS_seq[i*3:(i*3+3)]].append((i*3)+CDS_start)
+                    codon_ps = []
+                    for codon, ps in codon_poses.items():
+                        for j in range(min(args.feature_n, len(ps))): 
+                            codon_ps.append(ps[j])
+                else:
+                    codon_ps = [p+CDS_start for p in range(len(CDS_seq)/3)]
+
             for i, t_start in enumerate(codon_ps):
                 ###NOTE: get the +2 position, then sort, then add 1. Why? because if
                 ### on negative strand, then +3 will get the position BEFORE the first base
@@ -121,6 +157,7 @@ def get_features(args):
                 g_start_end = sorted([genome_positions[t_start],genome_positions[t_start+2]])
                 g_start = g_start_end[0]
                 g_end = g_start_end[1]+1 
+                feature_seq = seq[t_start:t_start+3]
                 outrows.append({"gene_id": seq_inf['gene_id'],
                                 "gene_name": seq_inf['gene_name'],
                                 "transcript_id": seq_inf['transcript_id'],
@@ -130,8 +167,11 @@ def get_features(args):
                                 "g_start": g_start,
                                 "g_end": g_end,
                                 "feature_idx":i,
-                                "feature_seq":seq[t_start:t_start+3],
-                                "strand":cvg_obj.strand})
+                                "feature_seq": feature_seq,
+                                "feature_AA":all_codons[feature_seq],
+                                "strand":cvg_obj.strand==True and 1 or 0,
+                                "CDS_start":CDS_start,
+                                "CDS_end":CDS_end})
     T = pd.DataFrame(outrows)
     T.to_csv(args.fn_out, 
              sep="\t", 
@@ -158,8 +198,11 @@ if __name__=="__main__":
     parser_getfeatures.add_argument("--fn_gtf_index", required=True)
     parser_getfeatures.add_argument("--gtf_ID", required=True)
     parser_getfeatures.add_argument("--fn_fasta", required=True)
-    parser_getfeatures.add_argument("--feature_type", required=True, choices=["UTR_STOP", "CDS_CODON"])
+    parser_getfeatures.add_argument("--feature_type", required=True, choices=["UTR_STOP", 
+                                                                              "CDS_CODON",
+                                                                              "CDS_ALL_CODONS"])
     parser_getfeatures.add_argument("--feature_args", required=False, nargs="+")
+    parser_getfeatures.add_argument("--feature_n", required=False, default=None, type=int)
     parser_getfeatures.add_argument("--fn_logfile", default="/dev/null")
     parser_getfeatures.set_defaults(func=get_features)
 
