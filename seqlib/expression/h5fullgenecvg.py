@@ -10,6 +10,16 @@ import pysam
 from coveragedata import *
 from gtf_to_genes import *
 
+
+def do_convolve(X, n):
+    """
+    flat convolution of width n on an array x in O(n) time
+    padded out to maintain shape
+    """
+    csum = np.cumsum(X)
+    conv = np.r_[np.repeat(csum[n-1],n), csum[n:]-csum[:-n]]
+    return conv/float(n)
+
 class h5FullGeneCvg_writer(object):
     
     def __init__(self, fn):
@@ -25,7 +35,7 @@ class h5FullGeneCvg_writer(object):
         
         self.a_idx = self.h5.createEArray(self.h5.root, 
                                           'idx', 
-                                          tables.UInt16Atom(), 
+                                          tables.UInt32Atom(), 
                                           shape=(0,), 
                                           filters=filt,
                                           expectedrows=65000000)
@@ -112,11 +122,15 @@ class h5FullGeneCvg(object):
         self.idx = self.h5.root.idx[:]
 
         self.GeneID = self.h5.root.geneID[:]
-        self.transcriptID = self.h5.root.transcriptID[:]
+        
+        if "transcriptID" in self.h5.root:
+            self.transcriptID = self.h5.root.transcriptID[:]
+        else:
+            self.transcriptID = self.h5.root.geneID
+
         self.length = self.h5.root.length[:]
         self.start = self.h5.root.start[:]
         self.stop = self.h5.root.stop[:]
-        
         self.inf = pd.DataFrame({"GeneID":self.GeneID,
                                  "transcriptID":self.transcriptID,
                                  "length":self.length,
@@ -156,11 +170,10 @@ class h5FullGeneCvg(object):
         sys.stderr.write("done\n")
 
 
-
     def get_stop_bp_meta(self, n_bp=300, R_tc_filter = None):
         sys.stderr.write("getting stop codon centered...")
         
-        idxs, cvg_by_bp, R_tcs = [], [], []
+        idxs, cvg_by_bp, R_tcs, diff_by_bp, smoothed_diff_by_bp = [], [], [], [], []
         n=0
         for idx, g in self.grouped_by_gene:
             
@@ -172,17 +185,25 @@ class h5FullGeneCvg(object):
             r_R_tc = max(1,mu_post_stop)/max(1,mu_pre_stop)
             R_tc  = np.log(max(1,mu_post_stop)/max(1,mu_pre_stop))/np.log(2)
             
-            if stop >=n_bp and length >= stop+n_bp+1:
+            if stop >=n_bp and length >= stop+n_bp+2:
                 cvg_by_bp.append(g.cvg[(stop-n_bp):(stop+n_bp+1)])
                 idxs.append(np.ones(2*n_bp+1)*idx)
                 R_tcs.append(np.ones(2*n_bp+1)*R_tc)
+                
+                
+                smoothed_cvg = do_convolve(np.array(g.cvg), 10)
+                delta = np.diff(np.array(g.cvg))
+                delta_smoothed =  np.diff(smoothed_cvg)
+                diff_by_bp.append(delta[(stop-n_bp):(stop+n_bp+1)])
+                smoothed_diff_by_bp.append(delta_smoothed[(stop-n_bp):(stop+n_bp+1)])
                 n+=1
             
         sys.stderr.write("finished individual gene parsing...")
-        
         T = pd.DataFrame({"idx":np.concatenate(idxs), 
                           "R_tc":np.concatenate(R_tcs),
                           "bp_cvg":np.concatenate(cvg_by_bp),
+                          "diff":np.concatenate(diff_by_bp),
+                          "smoothed_diff":np.concatenate(smoothed_diff_by_bp),
                           "pos":np.tile(np.arange(-n_bp,n_bp+1),n)})
         
         T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
@@ -204,7 +225,6 @@ class h5FullGeneCvg(object):
         
         S.columns = col_names
         S['pos'] = S.index 
-        
         sys.stderr.write("done\n")
         return S 
     
@@ -342,6 +362,7 @@ class h5FullGeneCvg(object):
         sys.stderr.write("getting stop codon centered...")
         
         idxs, cvg_by_bp, R_tcs = [], [], []
+        gene_ids = []
         n=0
         for idx, g in self.grouped_by_gene:
             if idx % 100==0:
@@ -349,6 +370,7 @@ class h5FullGeneCvg(object):
 
             stop = self.inf.ix[idx]['stop'] 
             length = self.inf.ix[idx]['length']
+            gene = self.inf.ix[idx]['GeneID']
         
             mu_post_stop = np.mean(g.cvg[stop:])
             mu_pre_stop = np.mean(g.cvg[:stop])
@@ -359,6 +381,8 @@ class h5FullGeneCvg(object):
                 cvg_by_bp.append(g.cvg[(stop-nt):(stop+nt+1)])
                 idxs.append(np.ones(2*nt+1)*idx)
                 R_tcs.append(np.ones(2*nt+1)*R_tc)
+                #pdb.set_trace()
+                #gene_ids.append(gene)
                 n+=1
             
         sys.stderr.write("\nfinished individual gene parsing...")
@@ -381,6 +405,7 @@ class h5FullGeneCvg(object):
         UTR_bins = bins
         
         idxs = [] 
+        geneIDs = [] 
         CDS_UTR_by_bin = []
         R_tcs = []
         
@@ -390,6 +415,7 @@ class h5FullGeneCvg(object):
             
             stop = self.inf.ix[idx]['stop'] 
             length = self.inf.ix[idx]['length']
+            gene = self.inf.ix[idx]['GeneID']
 
 
             mu_post_stop = np.mean(g.cvg[stop:])
@@ -401,14 +427,18 @@ class h5FullGeneCvg(object):
             UTR_binned = stats.binned_statistic(np.arange(length-stop), g['cvg'][stop:], bins=UTR_bins)
             
             idxs.append(np.ones(n_bins_total)*idx)
+
             CDS_UTR_by_bin.append(CDS_binned[0])
             CDS_UTR_by_bin.append(UTR_binned[0])
+            
+            geneIDs.append(np.tile(gene,n_bins_total))
             
         sys.stderr.write("\nfinished individual gene parsing...")
 
         n = self.full_stats.shape[0]
         pos=np.tile(np.arange(n_bins_total),n)
         T = pd.DataFrame({"idx":np.concatenate(idxs), 
+                          "geneID":np.concatenate(geneIDs),
                           "binned_cvg":np.concatenate(CDS_UTR_by_bin),
                           "R_tc":np.concatenate(R_tcs),
                           "pos":pos,
@@ -425,6 +455,8 @@ class h5FullGeneCvg(object):
 
         sys.stderr.write("getting R centered on termination (STOP) codon centered...")
         
+        win_size = 200
+
         outrows = []
         n=0
         for idx, g in self.grouped_by_gene:
@@ -432,6 +464,97 @@ class h5FullGeneCvg(object):
             length = self.inf.ix[idx]['length']
             gene = self.inf.ix[idx]['GeneID']
 
+            mu_post_stop = np.mean(g.cvg[stop:])
+            mu_pre_stop = np.mean(g.cvg[:stop])
+
+            mu_win_post_stop = np.mean(g.cvg[stop:(stop+win_size)])
+            mu_win_pre_stop = np.mean(g.cvg[(stop-win_size):stop])
+
+            med_post_stop = np.median(g.cvg[stop:])
+            med_pre_stop= np.median(g.cvg[:stop])
+            outrows.append({"idx":idx,
+                            "gene":gene,
+                            "length":length,
+                            "mu_post_stop":mu_post_stop,
+                            "mu_pre_stop":mu_pre_stop,
+                            "mu_win_post_stop":mu_win_post_stop,
+                            "mu_win_pre_stop":mu_win_pre_stop,
+                            "med_post_stop":med_post_stop,
+                            "med_pre_stop":med_pre_stop,
+                            "R_tc":max(1,mu_post_stop)/max(1,mu_pre_stop),
+                            "win_R_tc":max(1,mu_win_post_stop)/max(1,mu_win_pre_stop),
+                            "R_tc_median":max(1,med_post_stop)/max(1,med_pre_stop)})
+
+        
+        sys.stderr.write("finished individual gene parsing...")
+        
+        T = pd.DataFrame(outrows)
+        T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
+        
+        sys.stderr.write("done\n")
+        return T 
+    
+    def get_R_tc_scan(self,size):
+
+        sys.stderr.write("getting R centered +/- {size}nt of termination (STOP) codon ...".format(size=size))
+        
+        outrows = []
+        n=0
+        for idx, g in self.grouped_by_gene:
+            stop = self.inf.ix[idx]['stop'] 
+            length = self.inf.ix[idx]['length']
+            gene = self.inf.ix[idx]['GeneID']
+            tid = self.inf.ix[idx]['transcriptID']
+            
+            cum_cvg = np.cumsum(np.array(g.cvg))
+            delta = np.diff(np.array(g.cvg))
+            if stop+size>=length:
+                continue
+            
+            for i in range(-size,size):
+                
+                mid_p = stop+i
+                mu_pre= g.cvg[mid_p-1]#(cum_cvg[mid_p] - cum_cvg[mid_p-1])
+                mu_post= g.cvg[mid_p]#(cum_cvg[mid_p+1] - cum_cvg[mid_p])
+                
+                outrows.append({"idx":idx,
+                                "gene":gene,
+                                "tid":tid,
+                                "pos":i,
+                                "length":length,
+                                "stop_pos":stop,
+                                "diff": delta[mid_p],
+                                "mu_post":mu_post,
+                                "mu_pre":mu_pre})
+
+        
+        sys.stderr.write("finished individual gene parsing...")
+        
+        T = pd.DataFrame(outrows)
+        T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
+        
+        sys.stderr.write("done\n")
+        return T 
+    
+    def get_feature_R_tc(self, fn_features, size):
+
+        sys.stderr.write("getting R centered on feature")
+        
+        t_features = pd.read_csv(fn_features, 
+                                 header=0, 
+                                 sep="\t", 
+                                 compression="gzip", 
+                                 index_col="transcript_id")
+
+        outrows = []
+        n=0
+        for idx, g in self.grouped_by_gene:
+            stop = self.inf.ix[idx]['stop'] 
+            length = self.inf.ix[idx]['length']
+            gene = self.inf.ix[idx]['GeneID']
+            
+            pdb.set_trace()
+            
             mu_post_stop = np.mean(g.cvg[stop:])
             mu_pre_stop = np.mean(g.cvg[:stop])
             med_post_stop = np.median(g.cvg[stop:])
@@ -563,6 +686,30 @@ def Rtc(args):
     R_tc['sample_name'] = args.sample_name
     R_tc.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
 
+def Rtc_scan(args):
+    
+    h5_obj = h5FullGeneCvg(args.fn_h5, 
+                           fn_annots = args.fn_annotations, 
+                           annot_key_vals = args.annotation_key_values)
+
+    R_tc = h5_obj.get_R_tc_scan(args.size)
+    R_tc['sample_name'] = args.sample_name
+    R_tc.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
+
+def featureRtc(args):
+    exit(1)
+    """
+        not implemented
+    """
+    h5_obj = h5FullGeneCvg(args.fn_h5, 
+                           fn_annots = args.fn_annotations, 
+                           annot_key_vals = args.annotation_key_values)
+
+    fR_tc = h5_obj.get_feature_R_tc(args.fn_features, args.size)
+
+    fR_tc['sample_name'] = args.sample_name
+    fR_tc.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
+
 def plotCoverage(args):
     tables = []
     for i, sample in enumerate(args.samples):
@@ -640,6 +787,29 @@ if __name__=="__main__":
     parser_Rtc.add_argument("--fn_annotations", default=None, nargs = "*")
     parser_Rtc.add_argument("--annotation_key_values", default=None, nargs="*")
     parser_Rtc.set_defaults(func=Rtc)
+    
+    #output Rtc scan
+    parser_Rtc = subparsers.add_parser("Rtc_scan")
+    parser_Rtc.add_argument("--fn_h5", required=True)
+    parser_Rtc.add_argument("--fn_out", required=True)
+    parser_Rtc.add_argument("--size", required=True, type=int)
+    parser_Rtc.add_argument("--lambda_fun", required=False)
+    parser_Rtc.add_argument("--sample_name", required=True)
+    parser_Rtc.add_argument("--fn_annotations", default=None, nargs = "*")
+    parser_Rtc.add_argument("--annotation_key_values", default=None, nargs="*")
+    parser_Rtc.set_defaults(func=Rtc_scan)
+    
+    #output feature_centric Rtc metrics
+    parser_Rtc = subparsers.add_parser("featureRtc")
+    parser_Rtc.add_argument("--fn_h5", required=True)
+    parser_Rtc.add_argument("--fn_out", required=True)
+    parser_Rtc.add_argument("--fn_features", required=True)
+    parser_Rtc.add_argument("--size", required=True, type=int)
+    parser_Rtc.add_argument("--lambda_fun", required=False)
+    parser_Rtc.add_argument("--sample_name", required=True)
+    parser_Rtc.add_argument("--fn_annotations", default=None, nargs = "*")
+    parser_Rtc.add_argument("--annotation_key_values", default=None, nargs="*")
+    parser_Rtc.set_defaults(func=featureRtc)
     
     #output gene coverage 
     parser_Rtc = subparsers.add_parser("plotCoverage")
