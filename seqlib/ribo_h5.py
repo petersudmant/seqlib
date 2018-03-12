@@ -10,6 +10,7 @@ import scipy.stats as stats
 
 from expression.coveragedata import *
 from gtf_to_genes import *
+import timeit
 
 class h5_ribo_writer(object):
     
@@ -61,7 +62,7 @@ class h5_ribo_writer(object):
         self.curr_idx = 0
         self.contig_list = []
     
-    def populate(self, bamfile):
+    def populate(self, bamfile, nosoftclipping):
         """
         stores the position of the 5' end of each read
         """
@@ -81,6 +82,15 @@ class h5_ribo_writer(object):
             for r in bamfile.fetch(contig):
                 strand = not(r.is_reverse)
                 pos = r.pos
+                qual = r.mapping_quality
+                #only take unique reads - STAR -> 255 for uniq
+                if qual!=255: continue
+                
+                #if only using non-softclipped reads, check
+                if nosoftclipping:
+                    if len(r.cigartuples)>1:
+                        continue
+
                 #NOW set pos to 5' end
                 if strand:
                     poses.append(pos)
@@ -128,14 +138,32 @@ class h5_ribo(object):
 
         sys.stderr.write("done\n")
          
-    def load_offsets(self, fn):
-        t = pd.read_csv(fn, sep=" ", header=0)
-        self.offsets = {}
-        for i, row in t.iterrows():
-            assert row['manual'] != -99
-            self.offsets[row['len']] = row['manual']
+    def load_offsets(self, fn, no_offsets, read_length_range = None):
+        
+        if no_offsets:
+            assert fn is None
+            self.offsets = {}
+            uniq_lens = np.unique(self.length)
+            
+            if read_length_range is not None:
+                lo, hi = read_length_range
+                uniq_lens = list(set(uniq_lens).intersection(set(range(lo, hi+1))))
 
-    def get_offset_contig_arrays(self, contig):
+            for l in uniq_lens:
+                self.offsets[l] = 0
+        else:
+            t = pd.read_csv(fn, sep=" ", header=0)
+            self.offsets = {}
+            read_len_range = None
+            if read_length_range is not None: 
+                read_len_range = range(read_length_range[0], read_length_range[1]+1) 
+            for i, row in t.iterrows():
+                assert row['manual'] != -99
+                if read_len_range is not None and not row['len'] in read_len_range:
+                    continue
+                self.offsets[row['len']] = row['manual']
+        
+    def get_offset_contig_arrays(self, contig, alignment_end):
         assert self.offsets is not None, "need to assign offsets"        
         
         contig_pos = self.pos[self.contig_idx == self.contig_to_idx[contig]]
@@ -144,10 +172,20 @@ class h5_ribo(object):
         
         offset_contig_pos = np.zeros(contig_pos.shape[0],dtype='uint32')
         for l, o in self.offsets.items():
+            
+            alignment_end_offset = 0
+            if alignment_end == "3p":
+                alignment_end_offset = l 
+            elif alignment_end == "5p":
+                alignment_end_offset = 0
+            else:
+                assert False, "not supposed to happen!"
+
             w_pos = np.where((contig_length==l)&(contig_strand==1))
             w_neg = np.where((contig_length==l)&(contig_strand==0))
-            offset_contig_pos[w_pos] = contig_pos[w_pos]+o
-            offset_contig_pos[w_neg] = contig_pos[w_neg]-o
+                    
+            offset_contig_pos[w_pos] = contig_pos[w_pos]+o+alignment_end_offset
+            offset_contig_pos[w_neg] = contig_pos[w_neg]-o-alignment_end_offset
         
         #ONLY KEEP THOSE THAT are amongst the lengths we want 
         #!!! need to assign strand before I mutate offset_contig_pos!
@@ -160,8 +198,8 @@ class h5_ribo(object):
         return {0:offset_contig_pos[s_neg],
                 1:offset_contig_pos[s_pos]}
     
-    def get_offset_counts_by_contig(self, contig):
-        pos_arrays = self.get_offset_contig_arrays(contig)
+    def get_offset_counts_by_contig(self, contig, alignment_end = "5p"):
+        pos_arrays = self.get_offset_contig_arrays(contig, alignment_end = alignment_end)
         
         count_arrays = {}
         for strand, pos_array in pos_arrays.items():        
@@ -193,7 +231,7 @@ class h5_ribo(object):
 def create(args):
     bamfile = pysam.AlignmentFile(args.fn_bam, 'rb')
     new_h5 = h5_ribo_writer(args.fn_out)
-    new_h5.populate(bamfile)
+    new_h5.populate(bamfile, args.nosoftclipping)
     new_h5.close()
 
 
@@ -266,15 +304,6 @@ def calibrate(args, width=50):
     t.to_csv(args.fn_out, sep="\t", index=False)
 
 
-def get_cvg(exons, strand, counts_by_contig):
-    l = 0
-    cvg = 0
-    for e in exons:
-        s,e = e
-        l+=e-s
-        w = np.where((counts_by_contig[strand]['pos']>=s)&(counts_by_contig[strand]['pos']<e))
-        cvg += np.sum(counts_by_contig[strand]['count'][w])
-    return cvg, l
 
 def get_coverage_info(counts_by_contig, cvg_ob):
     
@@ -286,30 +315,94 @@ def get_coverage_info(counts_by_contig, cvg_ob):
         start_e, stop_e = [[start-2,start+1]], [[stop, stop+3]]
     
     strand = cvg_ob.strand 
-    CDS_cvg, CDS_l = get_cvg(cvg_ob.coding_exons, strand, counts_by_contig)
-    UTR_3p_cvg, UTR_3p_l = get_cvg(cvg_ob.UTR_3p_exons, strand, counts_by_contig)
-    UTR_5p_cvg, UTR_5p_l = get_cvg(cvg_ob.UTR_5p_exons, strand, counts_by_contig)
-    STOP_cvg, l = get_cvg(stop_e, strand, counts_by_contig)
-    START_cvg, l = get_cvg(start_e, strand, counts_by_contig)
+    CDS_cvg, CDS_cvg_u, CDS_l = get_cvg(cvg_ob.coding_exons, strand, counts_by_contig)
+    CDS_l200_cvg, CDS_l200_cvg_U, CDS_l200_l = get_cvg(cvg_ob.coding_exons, strand, counts_by_contig, maxlen=-200)
     
+    UTR_3p_cvg, UTR_3p_cvg_u, UTR_3p_l = get_cvg(cvg_ob.UTR_3p_exons, strand, counts_by_contig)
+    UTR_3p200_cvg, UTR_3p200_cvg_U, UTR_3p200_l = get_cvg(cvg_ob.UTR_3p_exons, strand, counts_by_contig, maxlen=200)
+
+    UTR_5p_cvg, UTR_5p_cvg_u, UTR_5p_l = get_cvg(cvg_ob.UTR_5p_exons, strand, counts_by_contig)
+    STOP_cvg, CDS_cvg_U, l = get_cvg(stop_e, strand, counts_by_contig)
+    START_cvg, CDS_cvg_U, l = get_cvg(start_e, strand, counts_by_contig)
+     
     return {"CDS_cvg":CDS_cvg,
             "CDS_len":CDS_l,
+            "CDS_up200_cvg":CDS_l200_cvg,
+            "CDS_up200_l":CDS_l200_l,
             "UTR_5p_cvg":UTR_5p_cvg,
             "UTR_5p_len":UTR_5p_l,
             "UTR_3p_cvg":UTR_3p_cvg,
             "UTR_3p_len":UTR_3p_l,
+            "UTR_3p200_cvg":UTR_3p200_cvg,
+            "UTR_3p200_l":UTR_3p200_l,
             "START_cvg":START_cvg,
             "STOP_cvg":STOP_cvg}
+
+def get_cvg(exons, strand, counts_by_contig, maxlen=None):
+    l = 0
+    cvg = 0
+    u_cvg = 0
+    cvg_array = []
+    u_cvg_array = []
+    for e in exons:
+        s,e = e
+        l+=e-s
+        w = np.where((counts_by_contig[strand]['pos']>=s)&(counts_by_contig[strand]['pos']<e))
+        
+        cvg_array.append(counts_by_contig[strand]['count'][w])
+        u_cvg_array.append(counts_by_contig[strand]['count'][w]!=0)
+        
+        cvg += np.sum(cvg_array[-1])
+        u_cvg = np.sum(u_cvg_array[-1])
+    
+    if maxlen is not None and cvg>0:
+        cvg_array = np.concatenate(cvg_array)
+        u_cvg_array = np.concatenate(u_cvg_array)
+        if abs(maxlen) <l:
+            l = abs(maxlen)
+            if maxlen>0:
+                cvg = np.sum(cvg_array[:maxlen])
+                u_cvg = np.sum(u_cvg_array[:maxlen])
+            else:
+                cvg = np.sum(cvg_array[maxlen:])
+                u_cvg = np.sum(u_cvg_array[maxlen:])
+    return cvg, u_cvg, l
+
+    """
+    ACTUALLY SLOWEWR!!!
+    delta_t_1 = timeit.default_timer() - t1
+    if len(exons) > 0:
+        t1 = timeit.default_timer()
+        poses = np.concatenate([np.arange(e[0], e[1]) for e in exons]) 
+        bool_poses = np.in1d(counts_by_contig[strand]['pos'], poses)
+        cvg_2 = np.sum(counts_by_contig[strand]['count'][bool_poses])
+        delta_t_2 = timeit.default_timer() - t1
+        print(cvg, cvg_2, delta_t_1/delta_t_2)
+    """
+            
+
+###############
+def get_binned_cvg(exons, strand, counts_by_contig):
+    l = 0
+    cvgs = []
+    for e in exons:
+        s,e = e
+        l+=e-s
+        w = np.where((counts_by_contig[strand]['pos']>=s)&(counts_by_contig[strand]['pos']<e))
+        cvgs.append(counts_by_contig[strand]['count'][w])
+    return cvg, l
 
 def get_bp_coverage(counts_by_contig, cvg_ob, width, feature_pos):
     
     strand = cvg_ob.strand
     s,e = feature_pos-width, feature_pos+width+1
     cvg_vect = np.zeros(2*width+1)
+    u_cvg_vect = np.zeros(2*width+1)
     
     w = np.where((counts_by_contig[strand]['pos']>=s)&(counts_by_contig[strand]['pos']<e))
     poses = counts_by_contig[strand]['pos'][w]
     cvg = counts_by_contig[strand]['count'][w]
+    u_cvg = (cvg!=0)*1
 
     if strand==1: 
         centered_poses = poses-feature_pos
@@ -317,20 +410,26 @@ def get_bp_coverage(counts_by_contig, cvg_ob, width, feature_pos):
         centered_poses = feature_pos-poses
     
     cvg_vect[centered_poses+width] = cvg
+    u_cvg_vect[centered_poses+width] = u_cvg
     
-    return cvg_vect
+    return cvg_vect, u_cvg_vect
     
     
-
 def RPFCountTable(args):
     h5 = h5_ribo(args.fn_h5)
-    h5.load_offsets(args.fn_aSiteOffsets)
+    h5.load_offsets(args.fn_aSiteOffsets, 
+                    args.no_aSiteOffsets, 
+                    args.read_length_range)
     
     gene_id_subset = None 
     if args.fn_gene_subset is not None:
         t_subset = pd.read_csv(args.fn_gene_subset, header=0, sep="\t")
         gene_id_subset = t_subset.gene_id.values
- 
+    
+    feature_table = None 
+    if args.feature=="OTHER":
+        feature_table = pd.read_csv(args.fn_features, header=0, sep="\t", index_col=["transcript_id","feature_idx"])
+
     sys.stderr.write("loading gene annotations...")
     logger = logging.getLogger(args.fn_logfile)
     s_id, path, genes = get_indexed_genes_for_identifier(args.fn_gtf_index,
@@ -344,7 +443,8 @@ def RPFCountTable(args):
         if not contig in h5.contig_to_idx: continue
         
         sys.stderr.write("{contig}...".format(contig=contig))
-        counts_by_contig = h5.get_offset_counts_by_contig(contig) #pos #count
+        t = timeit.default_timer()
+        counts_by_contig = h5.get_offset_counts_by_contig(contig, alignment_end = args.alignment_end)
         
         for cvg_ob in cvg_objs:
             if gene_id_subset is not None:
@@ -366,10 +466,87 @@ def RPFCountTable(args):
                     pos = cvg_ob.exons[-1][1]
                 else:
                     pos = cvg_ob.exons[0][0]
+            elif args.feature=="OTHER":
+                if not (cvg_ob.TID,0) in feature_table.index:
+                    continue
+                pos = feature_table.ix[(cvg_ob.TID,0)]['g_start']
             else:
                 assert False, "no method for feature: %s"%(args.feature) 
 
-            cvg_vect =  get_bp_coverage(counts_by_contig, cvg_ob, args.width, pos)
+            cvg_vect, u_cvg_vect =  get_bp_coverage(counts_by_contig, cvg_ob, args.width, pos)
+            cvg_info = get_coverage_info(counts_by_contig, cvg_ob)
+                
+            #######
+            #HERE add the total sum, and 1,2,3 counts
+            cum_prop = [0,0,0,0,0]
+            if np.sum(cvg_vect)>0:
+                k_largest_inds = np.argpartition(cvg_vect,-5)[-5:]
+                k_largest_vals = np.sort(cvg_vect[k_largest_inds])[::-1]
+                s = np.sum(cvg_vect) 
+                cum_prop = np.cumsum(k_largest_vals)/s
+                
+            for i, pos in enumerate(range(-args.width,args.width)):
+                outrows.append({"tid":cvg_ob.TID,
+                                "gene_id":cvg_ob.gene_id,
+                                "gene_name":cvg_ob.g.names[0],
+                                "cvg":cvg_vect[i],
+                                "u_cvg":u_cvg_vect[i],
+                                "CDS_cvg":cvg_info['CDS_cvg'],
+                                "CDS_len":cvg_info['CDS_len'],
+                                "pos":pos,
+                                "feature":args.feature,
+                                "cumprop_1":cum_prop[0],
+                                "cumprop_2":cum_prop[1]})
+
+        print("1", timeit.default_timer()-t, len(cvg_objs))
+    print("done")
+    t_time = timeit.default_timer()
+    t = pd.DataFrame(outrows)
+    print("time to make dataframe:", timeit.default_timer()-t_time)
+    #t.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
+    t.to_hdf(args.fn_out, key="data", mode="w", format='t', complib='zlib', complevel=5)
+    print("time to output hdf:", timeit.default_timer()-t_time)
+
+
+def makeFeatureSummary(args):
+    if args.fn_features is not None:
+        makeFeatureSummaryFromTable(args)
+    else:
+        makeGeneFeatureSummary(args)
+
+def makeFeatureSummaryFromTable(args):
+    """
+    get coverage over all the features in a table
+    each row must include:
+        contig
+        start
+        end
+        strand
+    maintain all other columns in the table
+    """
+    h5 = h5_ribo(args.fn_h5)
+    h5.load_offsets(args.fn_aSiteOffsets, 
+                    args.no_aSiteOffsets)
+
+    t_features = pd.read_csv(args.fn_features, header=0, sep="\t")
+    cvgs = []
+    
+    s_key, e_key = args.feature_start_key, args.feature_end_key
+
+    for contig, features in t_features.groupby("contig"):
+        if not contig in h5.contig_to_idx: continue
+        
+        sys.stderr.write("{contig}...".format(contig=contig))
+        counts_by_contig = h5.get_offset_counts_by_contig(contig) #pos #count
+        
+        for i, feature_row in features.iterrows():
+            s,e,strand = (feature_row[s_key], 
+                          feature_row[e_key],
+                          feature_row['strand'])
+
+            cvg, u_cvg, l = get_cvg([[s,e]], strand, counts_by_contig)
+            ###########
+            cvg_vect, u_cvg_vect =  get_bp_coverage(counts_by_contig, cvg_ob, args.width, pos)
             cvg_info = get_coverage_info(counts_by_contig, cvg_ob)
 
             for i, pos in enumerate(range(-args.width,args.width)):
@@ -382,13 +559,75 @@ def RPFCountTable(args):
                                 "pos":pos,
                                 "feature":args.feature})
 
+            #######
+            cvgs.append({"contig":contig, 
+                         s_key:s,
+                         e_key:e,
+                         "cvg":cvg})
+    t_cvg = pd.DataFrame(cvgs)    
+    T = pd.merge(t_features, 
+                 t_cvg, 
+                 left_on=['contig', s_key, e_key], 
+                 right_on = ['contig', s_key, e_key])
+    
+    T.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
+    
+def makeGeneFeatureSummary(args):
+
+    h5 = h5_ribo(args.fn_h5)
+    h5.load_offsets(args.fn_aSiteOffsets, 
+                    args.no_aSiteOffsets)
+
+    sys.stderr.write("loading gene annotations...")
+    logger = logging.getLogger(args.fn_logfile)
+    s_id, path, genes = get_indexed_genes_for_identifier(args.fn_gtf_index,
+                                                                   logger, 
+                                                                   args.gtf_ID)
+    sys.stderr.write("done\n")
+    cvg_objs_by_contig = get_cvg_objs_by_contig(genes,
+                                                "transcript")
+
+    outrows = []
+    for contig, cvg_objs in cvg_objs_by_contig.items():
+        if not contig in h5.contig_to_idx: continue
+        
+        sys.stderr.write("{contig}...".format(contig=contig))
+        counts_by_contig = h5.get_offset_counts_by_contig(contig) #pos #count
+        
+        for cvg_ob in cvg_objs:
+
+            cvg_inf = get_coverage_info(counts_by_contig, cvg_ob)
+            cvg_inf.update({"tid":cvg_ob.TID,
+                            "gene_id":cvg_ob.gene_id,
+                            "gene_name":cvg_ob.g.names[0]})
+            
+            for i, e in enumerate(cvg_ob.coding_exons):
+                cvg, u_cvg, l = get_cvg([e], cvg_ob.strand, counts_by_contig)
+                d = {"type":"exon",
+                     "type_idx":i,
+                     "cvg":cvg,
+                     "len":l}
+                d.update(cvg_inf)
+                outrows.append(d)
+                
+            for i, intr in enumerate(get_introns(cvg_ob.coding_exons)):
+                cvg, u_cvg, l = get_cvg([intr], cvg_ob.strand, counts_by_contig)
+                d = {"type":"intron",
+                     "type_idx":i,
+                     "cvg":cvg,
+                     "len":l}
+                d.update(cvg_inf)
+                outrows.append(d)
+
     t = pd.DataFrame(outrows)
-    t.to_csv(args.fn_out, sep="\t", index=False)
+    t.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
 
 def makeSummary(args):
 
     h5 = h5_ribo(args.fn_h5)
-    h5.load_offsets(args.fn_aSiteOffsets)
+    h5.load_offsets(args.fn_aSiteOffsets, 
+                    args.no_aSiteOffsets, 
+                    args.read_length_range)
     
     sys.stderr.write("loading gene annotations...")
     logger = logging.getLogger(args.fn_logfile)
@@ -416,18 +655,96 @@ def makeSummary(args):
     t.to_csv(args.fn_out, sep="\t", index=False)
 
 
+def get_flat_gene_regions(cvg_objs_by_contig):
+    """
+    only protein coding
+    """
+    flat_regions_by_contig = {}
+    for contig, cvg_objs in cvg_objs_by_contig.items():
+        
+        sys.stderr.write("{contig}...".format(contig=contig))
+        arrays = []
+        
+        for cvg_ob in cvg_objs:
+            arrays.append(np.concatenate([np.arange(e[0],e[1]) for e in cvg_ob.exons]))
+
+        flat_regions_by_contig[contig] = np.unique(np.concatenate(arrays))
+    
+    return flat_regions_by_contig
+
+def makeReadLengthSummary(args):
+
+    h5 = h5_ribo(args.fn_h5)
+    h5.load_offsets(args.fn_aSiteOffsets, args.no_aSiteOffsets)
+    
+    logger = logging.getLogger(args.fn_logfile)
+    s_id, path, genes = get_indexed_genes_for_identifier(args.fn_gtf_index,
+                                                         logger, 
+                                                         args.gtf_ID)
+    sys.stderr.write("done\n")
+    sys.stderr.write("loading gtf\n")
+    cvg_objs_by_contig = get_cvg_objs_by_contig(genes,
+                                                "transcript")
+    sys.stderr.write("done\n")
+    
+    flat_regions_by_contig = get_flat_gene_regions(cvg_objs_by_contig)
+     
+    coding_counts_by_size = {} 
+    for contig, flat_regions in flat_regions_by_contig.items():
+        if not contig in h5.contig_to_idx: continue
+
+        curr_idx = h5.contig_to_idx[contig]
+        w_curr_contig = np.where(h5.contig_idx==curr_idx)
+        poses = h5.pos[w_curr_contig]
+        lengths = h5.length[w_curr_contig]
+        
+        bool_coding_regions = np.in1d(poses, flat_regions)
+        coding_lens = lengths[bool_coding_regions] 
+        
+        U, counts = np.unique(coding_lens, return_counts = True)
+        for i in range(U.shape[0]):
+            l = U[i]
+            count = counts[i]
+            if not l in coding_counts_by_size:
+                coding_counts_by_size[l] = 0
+            coding_counts_by_size[l]+=count
+    
+    """
+    simple summary inf
+    """
+
+    U, counts = np.unique(h5.length, return_counts = True)
+    outrows = []
+    for i in range(U.shape[0]):
+        l = U[i]
+        count = counts[i]
+        ####
+        U_pos = np.unique(h5.pos[h5.length==l])
+        n_unique_pos = U_pos.shape[0] 
+        
+        if not l in coding_counts_by_size:
+            coding_counts_by_size[l] = 0
+
+        outrows.append({"length":l,
+                        "count":count,
+                        "coding_counts":coding_counts_by_size[l],
+                        "unique_positions":n_unique_pos})
+        
+    t = pd.DataFrame(outrows)
+    t.to_csv(args.fn_out, sep="\t", index=False)
+
+
 def makeWig(args):
     
     h5 = h5_ribo(args.fn_h5)
-    h5.load_offsets(args.fn_aSiteOffsets)
+    h5.load_offsets(args.fn_aSiteOffsets, 
+                    args.no_aSiteOffsets)
     
     color_by_strand = {0:"200,0,0",
                        1:"0,200,0"}
     
     name = args.fn_out.split("/")[-1].split(".wig")[0]
     Fout = open(args.fn_out,'w')
-    
-    
  
     outtables_by_strand_contig = {0:{},
                                   1:{}}
@@ -459,6 +776,7 @@ if __name__=="__main__":
     parser_create = subparsers.add_parser("create")
     parser_create.add_argument("--fn_bam", required=True)
     parser_create.add_argument("--fn_out", required=True)
+    parser_create.add_argument("--nosoftclipping", action='store_true', default=False)
     parser_create.set_defaults(func=create)
     
     #make wig from h5
@@ -466,6 +784,9 @@ if __name__=="__main__":
     parser_makeWig.add_argument("--fn_h5", required=True)
     parser_makeWig.add_argument("--fn_out", required=True)
     parser_makeWig.add_argument("--fn_aSiteOffsets", required=True)
+    parser_makeWig.add_argument("--no_aSiteOffsets", required=False, 
+                                                     default=False, 
+                                                     action='store_true')
     parser_makeWig.set_defaults(func=makeWig)
 
     #callibrate
@@ -481,24 +802,76 @@ if __name__=="__main__":
     parser_makeSum = subparsers.add_parser("makeSummary")
     parser_makeSum.add_argument("--fn_h5", required=True)
     parser_makeSum.add_argument("--fn_out", required=True)
-    parser_makeSum.add_argument("--fn_aSiteOffsets", required=True)
+    parser_makeSum.add_argument("--fn_aSiteOffsets", required=False)
+    parser_makeSum.add_argument("--no_aSiteOffsets", required=False, 
+                                                     default=False, 
+                                                     action='store_true')
+    parser_makeSum.add_argument("--read_length_range", 
+                                                     required=False, 
+                                                     default=None,
+                                                     type=int,
+                                                     nargs=2)
     parser_makeSum.add_argument("--fn_gtf_index", required=True)
     parser_makeSum.add_argument("--gtf_ID", required=True)
     parser_makeSum.add_argument("--fn_logfile", default='/dev/stderr')
     parser_makeSum.set_defaults(func=makeSummary)
     
-    #output feature centered counts
-    parser_makeSum = subparsers.add_parser("RPFCountTable")
+    #make summary of readlen details
+    parser_makeSum = subparsers.add_parser("makeReadLengthSummary")
     parser_makeSum.add_argument("--fn_h5", required=True)
     parser_makeSum.add_argument("--fn_out", required=True)
     parser_makeSum.add_argument("--fn_aSiteOffsets", required=True)
+    parser_makeSum.add_argument("--no_aSiteOffsets", required=False, 
+                                                     default=False, 
+                                                     action='store_true')
     parser_makeSum.add_argument("--fn_gtf_index", required=True)
     parser_makeSum.add_argument("--gtf_ID", required=True)
     parser_makeSum.add_argument("--fn_logfile", default='/dev/stderr')
-    parser_makeSum.add_argument("--feature", required=True, choices = ["START","STOP","POLYA"])
-    parser_makeSum.add_argument("--width", default=50, type=int)
-    parser_makeSum.add_argument("--fn_gene_subset", required=False, default=None)
-    parser_makeSum.set_defaults(func=RPFCountTable)
+    parser_makeSum.set_defaults(func=makeReadLengthSummary)
+    
+    
+    #make summary of coverage details by feature
+    parser_makeFeatureSum = subparsers.add_parser("makeFeatureSummary")
+    parser_makeFeatureSum.add_argument("--fn_h5", required=True)
+    parser_makeFeatureSum.add_argument("--fn_out", required=True)
+    parser_makeFeatureSum.add_argument("--fn_aSiteOffsets", required=False)
+    parser_makeFeatureSum.add_argument("--no_aSiteOffsets", required=False, 
+                                                     default=False, 
+                                                     action='store_true')
+    parser_makeFeatureSum.add_argument("--fn_features", required=False)
+    parser_makeFeatureSum.add_argument("--feature_start_key", 
+                                       required=False, 
+                                       default="start")
+    parser_makeFeatureSum.add_argument("--feature_end_key", 
+                                       required=False, 
+                                       default="end")
+    parser_makeFeatureSum.add_argument("--fn_gtf_index", required=False)
+    parser_makeFeatureSum.add_argument("--gtf_ID", required=False)
+    parser_makeFeatureSum.add_argument("--fn_logfile", default='/dev/stderr')
+    parser_makeFeatureSum.set_defaults(func=makeFeatureSummary)
+    
+    #output feature centered counts
+    parser_makeRPFCountTable = subparsers.add_parser("RPFCountTable")
+    parser_makeRPFCountTable.add_argument("--fn_h5", required=True)
+    parser_makeRPFCountTable.add_argument("--fn_out", required=True)
+    parser_makeRPFCountTable.add_argument("--fn_aSiteOffsets", required=False)
+    parser_makeRPFCountTable.add_argument("--no_aSiteOffsets", required=False, 
+                                                     default=False, 
+                                                     action='store_true')
+    parser_makeRPFCountTable.add_argument("--read_length_range", 
+                                                     required=False, 
+                                                     default=None,
+                                                     type=int,
+                                                     nargs=2)
+    parser_makeRPFCountTable.add_argument("--fn_gtf_index", required=True)
+    parser_makeRPFCountTable.add_argument("--gtf_ID", required=True)
+    parser_makeRPFCountTable.add_argument("--fn_logfile", default='/dev/stderr')
+    parser_makeRPFCountTable.add_argument("--feature", required=True, choices = ["START","STOP","POLYA","OTHER"])
+    parser_makeRPFCountTable.add_argument("--fn_features", required=False, default=None)
+    parser_makeRPFCountTable.add_argument("--alignment_end", required=True, choices = ["5p","3p"], default='5p')
+    parser_makeRPFCountTable.add_argument("--width", default=50, type=int)
+    parser_makeRPFCountTable.add_argument("--fn_gene_subset", required=False, default=None)
+    parser_makeRPFCountTable.set_defaults(func=RPFCountTable)
     
     args = parser.parse_args()
     args.func(args)

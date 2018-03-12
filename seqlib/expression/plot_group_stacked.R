@@ -16,9 +16,20 @@ fn_cvg = cmdArg("fn_cvg")
 fn_gene = cmdArg("fn_gene_model")
 fn_output = cmdArg("fn_output")
 gene_name = cmdArg("gene_name")
+offset = cmdArg("offset", default = 0)
 
 t=read.table(fn_cvg,header=T,sep="\t")
 t_gene_model = read.table(fn_gene, header=TRUE, sep="\t")
+
+t$pos = t$pos - offset
+t$t_pos = t$t_pos - offset
+t = t %>% filter(t_pos>=0)
+
+t_gene_model = t_gene_model %>% 
+    mutate(x = ifelse(x==0, 0, x-offset))
+
+print(t_gene_model)
+print(offset)
 
 t$age = t$time
 t = t %>% filter(group %in% c("PN42","2yr"))

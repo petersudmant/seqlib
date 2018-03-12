@@ -76,7 +76,7 @@ def get_cvg_objs_by_contig(gtf_genes, meta_type, **kwargs):
         if indiv_gene and not indiv_gene in g.names:
             continue
         elif indiv_gene and indiv_gene in g.names:
-            print g.names
+            print( g.names )
 
         if not contig in cvg_objs_by_contig:
             cvg_objs_by_contig[contig] = []

@@ -10,7 +10,6 @@ if __name__=="__main__":
     parser.add_argument("--compression", default=None)
     parser.add_argument("--column_names", default=None, nargs="+")
     o = parser.parse_args()
-    
     tables = []
     if o.column_names==None:
         for fn in o.fn_input:

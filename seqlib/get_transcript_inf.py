@@ -9,8 +9,6 @@ import re
 import pysam
 import sys
 
-from Bio.Seq import Seq
-from Bio.Alphabet import generic_dna
 from collections import defaultdict
 
 trans = string.maketrans('ATCGatcg', 'TAGCtacg')
@@ -18,7 +16,6 @@ def revcomp(s):
     return s.translate(trans)[::-1]
 
 def get_transcript_seq_inf(fa, contig, cvg_obj):
-
     UTR_3p_seqs = [fa.fetch(contig,UTR_e[0],UTR_e[1]) for UTR_e in cvg_obj.UTR_3p_exons]
     UTR_5p_seqs = [fa.fetch(contig,UTR_e[0],UTR_e[1]) for UTR_e in cvg_obj.UTR_5p_exons]
     CDS_seqs = [fa.fetch(contig,CDS_e[0],CDS_e[1]) for CDS_e in cvg_obj.coding_exons]
@@ -80,7 +77,72 @@ def get_features(args):
     """
     output all features in genomic coords (g_start, g_end)
     output all features in transcript coords (t_start, t_end)
+    """
+    if args.feature_type in ["CDS_CODON", 
+                             "UTR_STOP", 
+                             "CDS_ALL_CODONS"]:
+        get_codon_features(args)
+    elif args.feature_type == "STOP_KMER":
+        get_positional_kmer(args)
+    else:
+        print("arg not found")
+        exit(1)
+
+def get_positional_kmer(args):
     
+    fa = pysam.Fastafile(args.fn_fasta)
+    sys.stderr.write("loading gene annotations...")
+    logger = logging.getLogger(args.fn_logfile)
+    s_id, path, genes = get_indexed_genes_for_identifier(args.fn_gtf_index,
+                                                         logger, 
+                                                         args.gtf_ID)
+    sys.stderr.write("done\n")
+    cvg_objs_by_contig = get_cvg_objs_by_contig(genes,
+                                                "transcript")
+    outrows = []
+    for contig, cvg_objs in cvg_objs_by_contig.items():
+        if not contig in fa.references:
+            continue
+        sys.stderr.write("{contig}...".format(contig=contig))
+        for cvg_obj in cvg_objs:
+            
+            seq_inf = get_transcript_seq_inf(fa, contig, cvg_obj)
+            CDS_end = seq_inf['CDS_end']
+            CDS_start = seq_inf['CDS_start']
+            
+            seq = seq_inf['seq'].upper() 
+            CDS_seq = seq_inf['CDS_seq'].upper()
+            UTR_3p_seq = seq_inf['UTR_3p_seq'].upper()
+
+            genome_positions = cvg_obj.get_transcript_to_genome_coords()
+            
+            if args.feature_type == "STOP_KMER":
+                l_offset, r_offset = int(args.feature_args[0]), int(args.feature_args[1])
+                
+                t_start, t_end = [CDS_end-3+l_offset, CDS_end+r_offset]
+                feature_seq = seq[t_start:t_end]
+
+                outrows.append({"gene_id": seq_inf['gene_id'],
+                                "gene_name": seq_inf['gene_name'],
+                                "transcript_id": seq_inf['transcript_id'],
+                                "contig": contig,
+                                "t_start": t_start,
+                                "t_end": t_end,
+                                "feature_idx":0,
+                                "feature_seq": feature_seq,
+                                "strand":cvg_obj.strand==True and 1 or 0,
+                                "CDS_start":CDS_start,
+                                "CDS_end":CDS_end})
+    T = pd.DataFrame(outrows)
+    T.to_csv(args.fn_out, 
+             sep="\t", 
+             index=False,
+             compression="gzip")
+
+def get_codon_features(args):
+    """
+    output all features in genomic coords (g_start, g_end)
+    output all features in transcript coords (t_start, t_end)
     """
 
     stop_codons = "(?=TGA|TAA|TGA)"
@@ -150,6 +212,7 @@ def get_features(args):
                 else:
                     codon_ps = [p+CDS_start for p in range(len(CDS_seq)/3)]
 
+
             for i, t_start in enumerate(codon_ps):
                 ###NOTE: get the +2 position, then sort, then add 1. Why? because if
                 ### on negative strand, then +3 will get the position BEFORE the first base
@@ -158,6 +221,7 @@ def get_features(args):
                 g_start = g_start_end[0]
                 g_end = g_start_end[1]+1 
                 feature_seq = seq[t_start:t_start+3]
+                
                 outrows.append({"gene_id": seq_inf['gene_id'],
                                 "gene_name": seq_inf['gene_name'],
                                 "transcript_id": seq_inf['transcript_id'],
@@ -200,7 +264,8 @@ if __name__=="__main__":
     parser_getfeatures.add_argument("--fn_fasta", required=True)
     parser_getfeatures.add_argument("--feature_type", required=True, choices=["UTR_STOP", 
                                                                               "CDS_CODON",
-                                                                              "CDS_ALL_CODONS"])
+                                                                              "CDS_ALL_CODONS", 
+                                                                              "STOP_KMER"])
     parser_getfeatures.add_argument("--feature_args", required=False, nargs="+")
     parser_getfeatures.add_argument("--feature_n", required=False, default=None, type=int)
     parser_getfeatures.add_argument("--fn_logfile", default="/dev/null")
