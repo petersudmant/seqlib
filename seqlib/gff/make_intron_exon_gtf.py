@@ -14,7 +14,7 @@ from expression.coveragedata import *
 from gtf_to_genes import *
 import timeit
 
-
+import csv
 
 if __name__=="__main__":
 
@@ -51,10 +51,16 @@ if __name__=="__main__":
 
     outrows = []
 
-    attribute_str = """transcript_id "{TID}"; gene_id "{gene_id}"; gene_name "{gene_name}";"""
+    attribute_str = """transcript_id "{alt_TID}"; true_transcript_id "{TID}"; gene_id "{gene_id}"; gene_name "{gene_name}";"""
+    
+    i_counter = -1
+    e_counter = -1
+
     for contig, cvg_obs in cvg_objs_by_contig.items():
+        sys.stderr.write("loading %s\n"%contig)
         for cvg_ob in cvg_obs:
             for ex in cvg_ob.exons: 
+                e_counter +=1
                 starts.append(ex[0])
                 ends.append(ex[1])
                 contigs.append(contig)
@@ -64,9 +70,10 @@ if __name__=="__main__":
                 types.append("exon")
                 attributes.append(attribute_str.format(TID=cvg_ob.TID,
                                                       gene_id=cvg_ob.gene_id,
-                                                      gene_name=cvg_ob.g.names[0]))
-
+                                                      gene_name=cvg_ob.g.names[0], 
+                                                      alt_TID="ex%s"%e_counter))
             for intr in get_introns(cvg_ob.exons): 
+                i_counter +=1
                 starts.append(intr[0])
                 ends.append(intr[1])
                 contigs.append(contig)
@@ -76,15 +83,19 @@ if __name__=="__main__":
                 types.append("intron")
                 attributes.append(attribute_str.format(TID=cvg_ob.TID,
                                                       gene_id=cvg_ob.gene_id,
-                                                      gene_name=cvg_ob.g.names[0]))
+                                                      gene_name=cvg_ob.g.names[0],
+                                                      alt_TID="in%s"%i_counter))
     
-    T = pd.DataFrame({"contig":contig, 
-                      "source": types,
+    sys.stderr.write("loading contigs complete\n")
+    sys.stderr.write("creating GTF\n")
+    T = pd.DataFrame({"contig":contigs, 
                       "feature": types,
                       "start":starts,
                       "end": ends,
                       "strand":strands,
                       "attribute":attributes})
+    
+    T['source'] = "protein_coding"
     T['score'] = "."
     T['frame'] = "."
     columns =  ["contig", 
@@ -97,6 +108,6 @@ if __name__=="__main__":
                 "frame", 
                 "attribute"]
 
-    T.to_csv(args.fn_out, sep="\t", columns=columns, header=False, index=False)
+    T.to_csv(args.fn_out, sep="\t", columns=columns, header=False, index=False, quoting=csv.QUOTE_NONE)
 
 

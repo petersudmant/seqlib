@@ -485,9 +485,10 @@ class h5FullGeneCvg(object):
                             "win_R_tc":max(1,mu_win_post_stop)/max(1,mu_win_pre_stop),
                             "R_tc_median":max(1,med_post_stop)/max(1,med_pre_stop)})
 
-        
+         
         sys.stderr.write("finished individual gene parsing...")
-        
+        #pdb.set_trace()
+
         T = pd.DataFrame(outrows)
         T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
         
