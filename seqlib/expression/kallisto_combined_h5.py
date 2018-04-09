@@ -7,7 +7,7 @@ import pdb
 import scipy.stats as stats
 import logging
 import pysam
-
+import json
 
 class h5KallistoCvg_writer(object):
     """
@@ -93,7 +93,11 @@ class h5KallistoCvg_writer(object):
                                           shape=(0,n_transcripts), 
                                           filters=filt)
         
+        
+        
         for i, sample in enumerate(kwargs['samples']):
+            if i%100==0:
+                sys.stdout.write("{i}/{t} completed".format(i=i,t=len(kwargs['samples'])))
             h5_kquant = tables.openFile(kwargs['kallisto_abundance_fns'][i], mode='r')
             s = np.sum(h5_kquant.root.est_counts[:]/h5_kquant.root.aux.eff_lengths[:])
             TPM = h5_kquant.root.est_counts[:]/(s*h5_kquant.root.aux.eff_lengths[:])*1e6
@@ -112,10 +116,13 @@ class h5KallistoCvg_writer(object):
 
 def build_h5(args):
     #parser_create.add_argument("--fn_kallisto_idx_annot", required=True)
+
+    samples = json.load(open(args.sample_json))['samples']
+    kallisto_abundance_fns = ["{path}/{s}/abundance.h5".format(path=args.kallisto_abundance_path, s=s) for s in samples]
     h5 = h5KallistoCvg_writer(fn_kallisto_idx_annot = args.fn_kallisto_idx_annot, 
-                              kallisto_abundance_fns = args.kallisto_abundance_fns,
+                              kallisto_abundance_fns = kallisto_abundance_fns,
                               fn_out=args.fn_out, 
-                              samples=args.samples)
+                              samples=samples)
     h5.close()
     
 
@@ -128,8 +135,8 @@ if __name__=="__main__":
     parser_create = subparsers.add_parser("build_h5")
     parser_create.add_argument("--fn_out", required=True)
     parser_create.add_argument("--fn_kallisto_idx_annot", required=True)
-    parser_create.add_argument("--samples", required=True, nargs="+")
-    parser_create.add_argument("--kallisto_abundance_fns", required=True, nargs="+")
+    parser_create.add_argument("--kallisto_abundance_path", required=True)
+    parser_create.add_argument("--sample_json", required=True)
     parser_create.set_defaults(func=build_h5)
     
     args = parser.parse_args()
