@@ -17,6 +17,10 @@ import timeit
 import csv
 
 if __name__=="__main__":
+    """
+    *** NOTE: this will not make any idx for the introns
+    so, this JUST makes an EXON index
+    """
 
     parser = argparse.ArgumentParser()
     
@@ -80,7 +84,7 @@ if __name__=="__main__":
                 strands.append(cvg_ob.strand and "+" or "-")
                 genes.append(cvg_ob.gene_id)
                 transcripts.append(cvg_ob.TID)
-                types.append("intron")
+                types.append("intron") 
                 attributes.append(attribute_str.format(TID=cvg_ob.TID,
                                                       gene_id=cvg_ob.gene_id,
                                                       gene_name=cvg_ob.g.names[0],
@@ -107,7 +111,8 @@ if __name__=="__main__":
                 "strand", 
                 "frame", 
                 "attribute"]
-
+    
+    T = T.drop_duplicates(subset=["contig","start","end"])
     T.to_csv(args.fn_out, sep="\t", columns=columns, header=False, index=False, quoting=csv.QUOTE_NONE)
 
 

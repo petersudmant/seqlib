@@ -97,7 +97,8 @@ class h5KallistoCvg_writer(object):
         
         for i, sample in enumerate(kwargs['samples']):
             if i%100==0:
-                sys.stdout.write("{i}/{t} completed".format(i=i,t=len(kwargs['samples'])))
+                sys.stdout.write("{i}/{t}...".format(i=i,t=len(kwargs['samples'])))
+                sys.stdout.flush()
             h5_kquant = tables.openFile(kwargs['kallisto_abundance_fns'][i], mode='r')
             s = np.sum(h5_kquant.root.est_counts[:]/h5_kquant.root.aux.eff_lengths[:])
             TPM = h5_kquant.root.est_counts[:]/(s*h5_kquant.root.aux.eff_lengths[:])*1e6
@@ -124,7 +125,12 @@ def build_h5(args):
                               fn_out=args.fn_out, 
                               samples=samples)
     h5.close()
+   
+
+def summarize_introns(args):
     
+    h5 = tables.openFile(args.fn_h5, mode='r')
+      
 
 if __name__=="__main__":
     
@@ -138,6 +144,12 @@ if __name__=="__main__":
     parser_create.add_argument("--kallisto_abundance_path", required=True)
     parser_create.add_argument("--sample_json", required=True)
     parser_create.set_defaults(func=build_h5)
+    
+    #create h5
+    parser_summarize_introns = subparsers.add_parser("summarize_introns")
+    parser_create.add_argument("--fn_out", required=True)
+    parser_create.add_argument("--fn_h5", required=True)
+    parser_create.set_defaults(func=summarize_introns)
     
     args = parser.parse_args()
     args.func(args)
