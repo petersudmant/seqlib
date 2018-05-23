@@ -18,8 +18,9 @@ import csv
 
 if __name__=="__main__":
     """
-    *** NOTE: this will not make any idx for the introns
-    so, this JUST makes an EXON index
+    *** NOTE: this will not make any idx for the introns when
+    using STAR, because, (duh) intron aren't included, unless you name them
+    as "exon"
     """
 
     parser = argparse.ArgumentParser()
