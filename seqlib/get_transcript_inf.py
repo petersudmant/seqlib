@@ -1,3 +1,13 @@
+"""
+get sequences / features of transcripts
+e.g. 
+    UTR stop codons (all)
+    CDS prolines (positions)
+    STOP codon kmers
+    sequences of UTRs and CDS
+"""
+
+
 import argparse
 import logging
 import pandas as pd

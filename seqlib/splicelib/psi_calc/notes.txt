@@ -1,0 +1,30 @@
+SO, PSI prior beta(1, 1) -> posterior beta( 1 + # inclusion reads, 1 + # exclusion reads)
+
+but, how to use this? what is my p value of two different distributions? what is my bayes factor?
+
+      probability of model | data  = P(M|D) = P(D|M)P(M)
+                                              ---------
+                                                Pr(D)
+
+      P(D|M1)    ∫P(Θ1|M1)P(D|Θ1,M1)dΘ1
+BF =  -------  = ---------------------- 
+      P(D|M2)    ∫P(Θ2|M2)P(D|Θ2,M2)dΘ2
+
+
+now, if instead of integral you use Maximum likelihood estimate of the parameter for each model, is a maximum likelihood test. 
+
+ok....
+
+what does Peter do...
+
+well, you could do a binomial test or a chi squared test to see if the reads supporting events are different
+
+OR, you can say that the reads are coming from a binomial... and say, psi distribution is a beta distribution on 0-1
+
+so, cond 1 B(1+j1_reads,1+j2_reads) where j1_reads is n reads supporting junction 1
+
+then you can get B in condition 2, and take the convolution of the two beta distriutions (the negative of one) to get the distribution of delta-psis
+
+you can get a BF from this, or compute 90 Bayesian window something or oether...
+
+
