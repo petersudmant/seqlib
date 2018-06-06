@@ -101,7 +101,7 @@ if __name__=="__main__":
         if o.gene in g.names:
             g_obj = g
             break
-    assert g_obj!=None, "gene name {name} not found".format(o.gene)
+    assert g_obj!=None, "gene name {name} not found".format(name=o.gene)
     
     bp_cov_tables = []
     for sample in o.samples:

@@ -146,10 +146,10 @@ if __name__=="__main__":
     parser_create.set_defaults(func=build_h5)
     
     #create h5
-    parser_summarize_introns = subparsers.add_parser("summarize_introns")
-    parser_create.add_argument("--fn_out", required=True)
-    parser_create.add_argument("--fn_h5", required=True)
-    parser_create.set_defaults(func=summarize_introns)
+    #parser_summarize_introns = subparsers.add_parser("summarize_introns")
+    #parser_create.add_argument("--fn_out", required=True)
+    #parser_create.add_argument("--fn_h5", required=True)
+    #parser_create.set_defaults(func=summarize_introns)
     
     args = parser.parse_args()
     args.func(args)

@@ -21,6 +21,7 @@ offset = cmdArg("offset", default = 0)
 t=read.table(fn_cvg,header=T,sep="\t")
 t_gene_model = read.table(fn_gene, header=TRUE, sep="\t")
 
+
 t$pos = t$pos - offset
 t$t_pos = t$t_pos - offset
 t = t %>% filter(t_pos>=0)
@@ -32,17 +33,17 @@ print(t_gene_model)
 print(offset)
 
 t$age = t$time
-t = t %>% filter(group %in% c("PN42","2yr"))
+#t = t %>% filter(group %in% c("PN42","2yr"))
 t$group = factor(t$group)
 
 t$t_celltype = interaction(t$celltype, t$group)
-t$t_celltype = factor(t$t_celltype, levels=c("Drd1a.PN42",
-											 "Drd2.PN42",									
-										     "Drd1a.2yr",
-											 "Drd2.2yr"))
-											 											
-labels = data.frame(t_celltype=c("Drd1a.PN42","Drd2.2yr","Drd2.PN42","Drd1a.2yr"),
-					label=c("D1 PN42", "D2 2yr","D2 PN42","D1 2yr"))
+#t$t_celltype = factor(t$t_celltype, levels=c("Drd1a.PN42",
+#											 "Drd2.PN42",									
+#										     "Drd1a.2yr",
+#											 "Drd2.2yr"))
+#											 											
+#labels = data.frame(t_celltype=c("Drd1a.PN42","Drd2.2yr","Drd2.PN42","Drd1a.2yr"),
+#					label=c("D1 PN42", "D2 2yr","D2 PN42","D1 2yr"))
 
 
 Reds=brewer.pal(6,"Reds")[3:6]
@@ -57,6 +58,7 @@ B2=brewer.pal(9,"Blues")[6:9]
 
 colors=c(Reds,Blues)
 colors=c(Reds,Blues,Purples,Greens)
+colors=c(colors, colors)
 
 #2yD1 2yrD2 Pn42D1 Pn42D2
 C1=brewer.pal(9,"Greys")[2:5]
@@ -75,9 +77,11 @@ D1_PN42 = YlOr
 D1_2yr = OrRd
 
 colors=c(D1_2yr, D2_2yr, D1_PN42, D2_PN42)
+colors = c(Pu, Purples, Bu, YlOr, OrRd, brewer.pal(9,"Spectral"))
 
 STOP_CODON = t_gene_model %>% filter(type=='UTR_3p') %>% select(x) %>% min()
 
+#print(t$t_celltype)
 g1=ggplot(t)
 g1=g1+geom_area(aes(x=t_pos,y=log((cvg)+1)/log(10),fill=sample,group=sample),color="white")+
     theme_bw(base_size=10)+
