@@ -16,7 +16,7 @@ class h5_ribo_writer(object):
     
     def __init__(self, fn):
         self.h5 = tables.openFile(fn, mode='w')
-        
+        self.fn = fn        
         filt = tables.Filters(complevel=5, complib='blosc')
         """
         each of these is one entry per read
@@ -61,49 +61,127 @@ class h5_ribo_writer(object):
         
         self.curr_idx = 0
         self.contig_list = []
-    
-    def populate(self, bamfile, nosoftclipping):
+   
+    def load_se(self, contig, clen, bamfile):
+        strands = []
+        lens = []
+        poses = []
+        
+        for r in bamfile.fetch(contig):
+            strand = not(r.is_reverse)
+            pos = r.pos
+            qual = r.mapping_quality
+            #only take unique reads - STAR -> 255 for uniq
+            if qual!=255: continue
+            
+            #if only using non-softclipped reads, check
+            if nosoftclipping:
+                if len(r.cigartuples)>1:
+                    continue
+
+            #NOW set pos to 5' end
+            if strand:
+                poses.append(pos)
+            else:
+                poses.append(pos+r.query_alignment_length)
+
+            strands.append(strand)
+            lens.append(r.query_alignment_length)
+        
+        return strands, lens, poses
+
+    def load_pe(self, contig, clen, bamfile, pe_3p):
         """
-        stores the position of the 5' end of each read
+        for pe reads, we take read1 5' end and read2 3' end
+        note for pe reads the lengths are only useful to get the proper end
+        because they are in genomic coords, not transcriptomic
+        """
+            
+        reads_by_name = {}
+        
+        #for r in bamfile.fetch("chr1",24018269,24022915):
+        #for r in bamfile.fetch("chr9",130209953,130213711):
+        #for r in bamfile.fetch("chr10",99092254,99094458):
+        for r in bamfile.fetch(contig):
+            
+            #only take unique reads - STAR -> 255 for uniq
+            if r.mapping_quality!=255: 
+                continue
+            
+            #only consider paired reads mapped on this contig
+            if ((not r.is_paired) or (r.mate_is_unmapped) or (not r.next_reference_name==contig)):
+                continue
+            
+            if not r.qname in reads_by_name:
+                reads_by_name[r.qname] = {"name":r.qname}
+             
+            if r.is_read1:
+                read = "read1"
+            else:
+                read = "read2"
+
+            reads_by_name[r.qname]["%s_pos"%read] = r.pos
+            reads_by_name[r.qname]["%s_l"%read] = r.query_alignment_length
+            reads_by_name[r.qname]["%s_strand"%read] = not(r.is_reverse)
+
+        strands = []
+        lens = []
+        poses = []
+        names = []
+        
+        for r_name, r_info in reads_by_name.items():
+            #print(r_info)
+            #pdb.set_trace()
+            if not "read1_strand" in r_info or not "read2_strand" in r_info:
+                print(r_info)
+                pdb.set_trace()
+            
+            strands.append(r_info['read1_strand'])
+            names.append(r_name)
+            
+            assert r_info['read1_strand']!=r_info['read2_strand']
+
+            if pe_3p:
+                if r_info['read1_strand']:
+                    poses.append(r_info['read2_pos']+r_info['read2_l'])
+                    lens.append(-1)
+                else:
+                    poses.append(r_info['read2_pos'])
+                    lens.append(-1)
+            else:
+                if r_info['read1_strand']:
+                    poses.append(r_info['read1_pos'])
+                    lens.append(-1)
+                else:
+                    poses.append(r_info['read1_pos']+r_info['read1_l'])
+                    lens.append(-1)
+        
+        return strands, lens, poses, names
+
+
+    def populate(self, bamfile, nosoftclipping, is_pe, pe_3p):
+        """
+        stores the position of the 5' and  3' end of each read
+        for paired reads stores the 5' end and the 3' end of the other pair
+        default is se
         """
         contigs = {x[0]:x[1] for x in zip(bamfile.references, bamfile.lengths)}
-         
-        n = 0
+        
+        F = open("%s.bed"%(self.fn),'w')
         for contig, clen in contigs.items():
             if "chrUn" in contig: continue
             if "random" in contig: continue
             
+            #if contig!="chr10": continue ####TESTING
+
             sys.stderr.write("loading {contig}...".format(contig=contig))
-            strands = []
-            lens = []
-            poses = []
 
-            #for r in bamfile.fetch("chr5",137891642,137916204):
-            for r in bamfile.fetch(contig):
-                strand = not(r.is_reverse)
-                pos = r.pos
-                qual = r.mapping_quality
-                #only take unique reads - STAR -> 255 for uniq
-                if qual!=255: continue
-                
-                #if only using non-softclipped reads, check
-                if nosoftclipping:
-                    if len(r.cigartuples)>1:
-                        continue
+            if is_pe:
+                strands, lens, poses, names = self.load_pe(contig, clen, bamfile, pe_3p)
+            else:
+                strands, lens, poses = load_se(contig, clen, bamfile)
 
-                #NOW set pos to 5' end
-                if strand:
-                    poses.append(pos)
-                else:
-                    poses.append(pos+r.query_alignment_length)
 
-                strands.append(strand)
-                lens.append(r.query_alignment_length)
-                #print(r)
-                #print(pos, strand, r.query_alignment_length, r.cigartuples)
-                #pdb.set_trace()
-                n+=1
-            
             l = len(poses)
             self.pos.append(np.array(poses,dtype='uint32'))
             self.strand.append(np.array(strands,dtype='int8'))
@@ -112,6 +190,15 @@ class h5_ribo_writer(object):
             
             self.contig_list.append(contig) 
             self.curr_idx+=1
+            
+            """ 
+            for i, pos in enumerate(poses):
+                l = strands[i] == 1 and 10 or -10
+                s, e = sorted([pos, pos+l])
+                F.write("{contig}\t{start}\t{end}\t{name}\n".format(contig=contig, start=s, end=e, name = names[i]))
+            """ 
+        
+        F.close()
 
     def close(self):
         self.contigs.append(np.array(self.contig_list))
@@ -231,7 +318,7 @@ class h5_ribo(object):
 def create(args):
     bamfile = pysam.AlignmentFile(args.fn_bam, 'rb')
     new_h5 = h5_ribo_writer(args.fn_out)
-    new_h5.populate(bamfile, args.nosoftclipping)
+    new_h5.populate(bamfile, args.nosoftclipping, args.is_pe, args.pe_3p)
     new_h5.close()
 
 
@@ -415,7 +502,7 @@ def get_bp_coverage(counts_by_contig, cvg_ob, width, feature_pos):
     return cvg_vect, u_cvg_vect
     
     
-def RPFCountTable(args):
+def RFPCountTable(args):
     h5 = h5_ribo(args.fn_h5)
     h5.load_offsets(args.fn_aSiteOffsets, 
                     args.no_aSiteOffsets, 
@@ -777,6 +864,8 @@ if __name__=="__main__":
     parser_create.add_argument("--fn_bam", required=True)
     parser_create.add_argument("--fn_out", required=True)
     parser_create.add_argument("--nosoftclipping", action='store_true', default=False)
+    parser_create.add_argument("--is_pe", action='store_true', default=False)
+    parser_create.add_argument("--pe_3p", action='store_true', default=False)
     parser_create.set_defaults(func=create)
     
     #make wig from h5
@@ -851,27 +940,27 @@ if __name__=="__main__":
     parser_makeFeatureSum.set_defaults(func=makeFeatureSummary)
     
     #output feature centered counts
-    parser_makeRPFCountTable = subparsers.add_parser("RPFCountTable")
-    parser_makeRPFCountTable.add_argument("--fn_h5", required=True)
-    parser_makeRPFCountTable.add_argument("--fn_out", required=True)
-    parser_makeRPFCountTable.add_argument("--fn_aSiteOffsets", required=False)
-    parser_makeRPFCountTable.add_argument("--no_aSiteOffsets", required=False, 
+    parser_makeRFPCountTable = subparsers.add_parser("RFPCountTable")
+    parser_makeRFPCountTable.add_argument("--fn_h5", required=True)
+    parser_makeRFPCountTable.add_argument("--fn_out", required=True)
+    parser_makeRFPCountTable.add_argument("--fn_aSiteOffsets", required=False)
+    parser_makeRFPCountTable.add_argument("--no_aSiteOffsets", required=False, 
                                                      default=False, 
                                                      action='store_true')
-    parser_makeRPFCountTable.add_argument("--read_length_range", 
+    parser_makeRFPCountTable.add_argument("--read_length_range", 
                                                      required=False, 
                                                      default=None,
                                                      type=int,
                                                      nargs=2)
-    parser_makeRPFCountTable.add_argument("--fn_gtf_index", required=True)
-    parser_makeRPFCountTable.add_argument("--gtf_ID", required=True)
-    parser_makeRPFCountTable.add_argument("--fn_logfile", default='/dev/stderr')
-    parser_makeRPFCountTable.add_argument("--feature", required=True, choices = ["START","STOP","POLYA","OTHER"])
-    parser_makeRPFCountTable.add_argument("--fn_features", required=False, default=None)
-    parser_makeRPFCountTable.add_argument("--alignment_end", required=True, choices = ["5p","3p"], default='5p')
-    parser_makeRPFCountTable.add_argument("--width", default=50, type=int)
-    parser_makeRPFCountTable.add_argument("--fn_gene_subset", required=False, default=None)
-    parser_makeRPFCountTable.set_defaults(func=RPFCountTable)
+    parser_makeRFPCountTable.add_argument("--fn_gtf_index", required=True)
+    parser_makeRFPCountTable.add_argument("--gtf_ID", required=True)
+    parser_makeRFPCountTable.add_argument("--fn_logfile", default='/dev/stderr')
+    parser_makeRFPCountTable.add_argument("--feature", required=True, choices = ["START","STOP","POLYA","OTHER"])
+    parser_makeRFPCountTable.add_argument("--fn_features", required=False, default=None)
+    parser_makeRFPCountTable.add_argument("--alignment_end", required=True, choices = ["5p","3p"], default='5p')
+    parser_makeRFPCountTable.add_argument("--width", default=50, type=int)
+    parser_makeRFPCountTable.add_argument("--fn_gene_subset", required=False, default=None)
+    parser_makeRFPCountTable.set_defaults(func=RFPCountTable)
     
     args = parser.parse_args()
     args.func(args)
