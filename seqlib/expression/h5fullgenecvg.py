@@ -451,7 +451,7 @@ class h5FullGeneCvg(object):
         return T 
 
 
-    def get_R_tc(self):
+    def get_R_tc(self, simple_counts=False):
 
         sys.stderr.write("getting R centered on termination (STOP) codon centered...")
         
@@ -464,34 +464,54 @@ class h5FullGeneCvg(object):
             length = self.inf.ix[idx]['length']
             gene = self.inf.ix[idx]['GeneID']
 
-            mu_post_stop = np.mean(g.cvg[stop:])
-            mu_pre_stop = np.mean(g.cvg[:stop])
+            if simple_counts:
 
-            mu_win_post_stop = np.mean(g.cvg[stop:(stop+win_size)])
-            mu_win_pre_stop = np.mean(g.cvg[(stop-win_size):stop])
+                count_post_stop = np.int(np.sum(g.cvg[stop:]))
+                count_pre_stop = np.int(np.sum(g.cvg[:stop]))
+                outrows.append({ "idx":idx,
+                                 "gene":gene,
+                                 "length":length,
+                                 "stop_pos":stop,
+                                 "count_post_stop":count_post_stop,
+                                 "count_pre_stop":count_pre_stop })
+            else:
+                mu_post_stop = np.mean(g.cvg[stop:])
+                mu_pre_stop = np.mean(g.cvg[:stop])
 
-            med_post_stop = np.median(g.cvg[stop:])
-            med_pre_stop= np.median(g.cvg[:stop])
-            outrows.append({"idx":idx,
-                            "gene":gene,
-                            "length":length,
-                            "mu_post_stop":mu_post_stop,
-                            "mu_pre_stop":mu_pre_stop,
-                            "mu_win_post_stop":mu_win_post_stop,
-                            "mu_win_pre_stop":mu_win_pre_stop,
-                            "med_post_stop":med_post_stop,
-                            "med_pre_stop":med_pre_stop,
-                            "R_tc":max(1,mu_post_stop)/max(1,mu_pre_stop),
-                            "win_R_tc":max(1,mu_win_post_stop)/max(1,mu_win_pre_stop),
-                            "R_tc_median":max(1,med_post_stop)/max(1,med_pre_stop)})
+                mu_win_post_stop = np.mean(g.cvg[stop:(stop+win_size)])
+                mu_win_pre_stop = np.mean(g.cvg[(stop-win_size):stop])
+
+                med_post_stop = np.median(g.cvg[stop:])
+                med_pre_stop= np.median(g.cvg[:stop])
+                outrows.append({"idx":idx,
+                                "gene":gene,
+                                "length":length,
+                                "mu_post_stop":mu_post_stop,
+                                "mu_pre_stop":mu_pre_stop,
+                                "mu_win_post_stop":mu_win_post_stop,
+                                "mu_win_pre_stop":mu_win_pre_stop,
+                                "med_post_stop":med_post_stop,
+                                "med_pre_stop":med_pre_stop,
+                                "R_tc":max(1,mu_post_stop)/max(1,mu_pre_stop),
+                                "win_R_tc":max(1,mu_win_post_stop)/max(1,mu_win_pre_stop),
+                                "R_tc_median":max(1,med_post_stop)/max(1,med_pre_stop)})
 
          
         sys.stderr.write("finished individual gene parsing...")
         #pdb.set_trace()
-
+        
         T = pd.DataFrame(outrows)
         T = pd.merge(T, self.full_stats, left_on="idx", right_on="idx")
         
+        if simple_counts:
+            T=T[["idx",
+                 "gene",
+                 "length",
+                 "stop_pos",
+                 "count_post_stop",
+                 "count_pre_stop",
+                 "annot_nonoverlapping"]]
+
         sys.stderr.write("done\n")
         return T 
     
@@ -682,8 +702,8 @@ def Rtc(args):
     h5_obj = h5FullGeneCvg(args.fn_h5, 
                            fn_annots = args.fn_annotations, 
                            annot_key_vals = args.annotation_key_values)
-
-    R_tc = h5_obj.get_R_tc()
+    
+    R_tc = h5_obj.get_R_tc(simple_counts = args.simple_count)
     R_tc['sample_name'] = args.sample_name
     R_tc.to_csv(args.fn_out, sep="\t", index=False, compression="gzip")
 
@@ -787,6 +807,7 @@ if __name__=="__main__":
     parser_Rtc.add_argument("--sample_name", required=True)
     parser_Rtc.add_argument("--fn_annotations", default=None, nargs = "*")
     parser_Rtc.add_argument("--annotation_key_values", default=None, nargs="*")
+    parser_Rtc.add_argument("--simple_count", default=False, action="store_true")
     parser_Rtc.set_defaults(func=Rtc)
     
     #output Rtc scan
