@@ -35,7 +35,7 @@ def make_json_config(xml_dict, naming_pattern, fn_add_to_config):
         #iterate over the 
         #pdb.set_trace()
         run_accessions = []
-        print sample_accession, experiment_accession, sample_alias, sample_title
+        print(sample_accession, experiment_accession, sample_alias, sample_title)
         if type(d["RUN_SET"]["RUN"]) == list:
             for st in d["RUN_SET"]["RUN"]:
                 run_accessions.append(st["@accession"])
@@ -62,14 +62,14 @@ def make_json_config(xml_dict, naming_pattern, fn_add_to_config):
                 #j_out["samples"][sample_accession][attr] = val
 
         if "SAMPLE_NAME" in d["SAMPLE"]:
-            for attribute_pair in d["SAMPLE"]["SAMPLE_NAME"].iteritems():
+            for attribute_pair in d["SAMPLE"]["SAMPLE_NAME"].items():
                 attr, val = attribute_pair
                 #print attr, val
                 #j_out["samples"][sample_accession][attr] = val
                 j_out["experiments"][experiment_accession][attr] = val
 
         if "samples" in add.keys():
-            for key, value in add["samples"][sample_accession].iteritems():
+            for key, value in add["samples"][sample_accession].items():
                 #j_out["samples"][sample_accession][key] = value
                 j_out["experiments"][experiment_accession][attr] = val
 
