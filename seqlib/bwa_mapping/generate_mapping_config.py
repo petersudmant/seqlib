@@ -9,22 +9,22 @@ Generates a config file of the following format:
     "input_sample_path": "/global/home/users/sweram19/scratch/chimp/SRP018689/",
     "input_samples": {
         "SRS396861_Damian_Pan-troglodytes-ellioti_M": [
-            "SRR748135.fastq",
-            "SRR748133.fastq",
-            "SRR748134.fastq",
-            "SRR748136.fastq",
+            "SRR748133_1.fastq",
+            "SRR748133_2.fastq",
+            "SRR748134_1.fastq",
+            "SRR748134_2.fastq",
         ],
         "SRS396866_Taweh_Pan-troglodytes-ellioti_M": [
-            "SRR748158.fastq",
-            "SRR748159.fastq",
-            "SRR748156.fastq",
-            "SRR748157.fastq",
+            "SRR748156_1.fastq",
+            "SRR748156_2.fastq",
+            "SRR748157_1.fastq",
+            "SRR748157_2.fastq",
         ]
     }
 }
 
 To be used with the following Snakefile:
-/global/home/users/psudmant/code/snakemake-workflows/bio/ngs/workflows/bwa_map/Snakefile
+/global/home/users/psudmant/code/snakemake-workflows/bio/ngs/workflows/bwa_map/run_maps_Snakefile
 """
 
 __author__ = "Swetha Ramesh"
