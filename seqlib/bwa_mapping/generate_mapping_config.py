@@ -25,6 +25,9 @@ Generates a config file of the following format:
 
 To be used with the following Snakefile:
 /global/home/users/psudmant/code/snakemake-workflows/bio/ngs/workflows/bwa_map/run_maps_Snakefile
+
+Note: Make sure input samples directory is only filled with directories, one for each sample. If any other files
+or directories are in the input samples directory, this file will error.
 """
 
 __author__ = "Swetha Ramesh"
@@ -50,9 +53,9 @@ def make_json(bwa, bwa_path, input_samples_path, config_name):
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_name", default="config")
+    parser.add_argument("--index", required=True, help="Full path to bwa index file")
+    parser.add_argument("--samples", required=True, help="Full path to sample directories")
     o = parser.parse_args()
 
 
-    bwa_index_path = input('Full path to bwa index file: ')
-    input_samples_path = input('Full path to sample directories: ')
-    make_json("bwa_index", bwa_index_path, input_samples_path, o.config_name)
+    make_json("bwa_index", o.index, o.samples, o.config_name)
